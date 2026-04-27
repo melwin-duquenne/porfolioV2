@@ -139,11 +139,7 @@ npm run preview
 
 ## Déploiement
 
-**Netlify** — réglages recommandés :
-- Build command : `npm run build`
-- Publish directory : `dist`
-
-**Vercel** — détection Vite automatique, aucune configuration nécessaire.
+**Vercel** — détection Vite automatique, aucune configuration nécessaire. Connecte le repo GitHub et déploie en un clic.
 
 Pas de Vue Router → pas de redirects SPA à configurer.
 

@@ -1,0 +1,64 @@
+{
+  "editor": {
+    "name": "Melwin Duquenne",
+    "status": "Particulier",
+    "email": "melwinduquenne@gmail.com"
+  },
+  "host": {
+    "name": "Vercel Inc.",
+    "address": "340 S Lemon Ave #4133, Walnut, CA 91789, États-Unis",
+    "website": "https://vercel.com"
+  },
+  "sections": [
+    {
+      "title": "1. Éditeur du site",
+      "paragraphs": [
+        "Le présent site est édité par Melwin Duquenne, particulier.",
+        "Email : melwinduquenne@gmail.com"
+      ]
+    },
+    {
+      "title": "2. Hébergement",
+      "paragraphs": [
+        "Ce site est hébergé par Vercel Inc., 340 S Lemon Ave #4133, Walnut, CA 91789, États-Unis.",
+        "Site : https://vercel.com"
+      ]
+    },
+    {
+      "title": "3. Propriété intellectuelle",
+      "paragraphs": [
+        "L'ensemble du contenu de ce site (textes, code source, présentation des projets) est la propriété exclusive de Melwin Duquenne et est protégé par les lois relatives à la propriété intellectuelle et au droit d'auteur.",
+        "Les logos, noms et marques des technologies présentées (Vue.js, React, Docker, Symfony, etc.) sont la propriété de leurs titulaires respectifs. Leur présence sur ce site vise uniquement à illustrer les compétences techniques de l'auteur, sans aucune intention commerciale.",
+        "Les projets présentés sont des réalisations personnelles, pédagogiques ou professionnelles de l'auteur. Les liens redirigent vers des dépôts GitHub publics dont l'auteur est propriétaire ou co-auteur."
+      ]
+    },
+    {
+      "title": "4. Données personnelles et cookies",
+      "paragraphs": [
+        "Ce site ne collecte aucune donnée personnelle de manière automatisée. Aucun formulaire de saisie, aucun cookie de traçage ou d'analyse (Google Analytics, etc.) n'est utilisé.",
+        "Le lien de contact (mailto:) ouvre le client de messagerie de l'utilisateur. Aucune donnée n'est transmise ni stockée par ce site lors de cette action.",
+        "Conformément au Règlement Général sur la Protection des Données (RGPD — Règlement UE 2016/679) et à la loi Informatique et Libertés, vous disposez d'un droit d'accès, de rectification et de suppression des données vous concernant. Pour exercer ce droit, contactez : melwinduquenne@gmail.com"
+      ]
+    },
+    {
+      "title": "5. Liens hypertextes",
+      "paragraphs": [
+        "Ce site contient des liens vers des services tiers (GitHub, etc.). L'éditeur ne saurait être tenu responsable du contenu, des pratiques de confidentialité ou de la disponibilité de ces sites externes.",
+        "La présence d'un lien vers un site tiers ne constitue pas une validation de ce site ou de son contenu."
+      ]
+    },
+    {
+      "title": "6. Limitation de responsabilité",
+      "paragraphs": [
+        "L'éditeur s'efforce de maintenir les informations de ce site à jour et exactes, mais ne peut garantir l'exhaustivité ou l'exactitude des contenus présentés.",
+        "L'éditeur ne saurait être tenu responsable des dommages directs ou indirects résultant de l'utilisation de ce site ou de l'impossibilité d'y accéder."
+      ]
+    },
+    {
+      "title": "7. Droit applicable",
+      "paragraphs": [
+        "Les présentes mentions légales sont régies par le droit français. En cas de litige relatif à l'interprétation ou à l'exécution des présentes, les tribunaux français seront seuls compétents."
+      ]
+    }
+  ]
+}
