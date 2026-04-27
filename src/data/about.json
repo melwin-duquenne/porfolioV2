@@ -5,16 +5,10 @@
   "email": "melwinduquenne@gmail.com",
   "studies": [
     {
-      "degree": "BAC STI2D SIN",
-      "school": "le gaross",
-      "adress": "Auch, 32013",
-      "year": "2019 – 2020"
-    },
-    {
-      "degree": "BTS SIO SLAM",
-      "school": "pardailhan",
-      "adress": "Auch, 32013",
-      "year": "2021 – 2023"
+      "degree": "Master ingénierie du web",
+      "school": "ESGI",
+      "adress": "Aix-en-Provence, 13080",
+      "year": "2025 – 2027"
     },
     {
       "degree": "Licence concepteur developpeur d'application",
@@ -23,17 +17,23 @@
       "year": "2024 – 2025"
     },
     {
-      "degree": "Master ingénierie du web",
-      "school": "ESGI",
-      "adress": "Aix-en-Provence, 13080",
-      "year": "2025 – 2027"
+      "degree": "BTS SIO SLAM",
+      "school": "pardailhan",
+      "adress": "Auch, 32013",
+      "year": "2021 – 2023"
+    },
+    {
+      "degree": "BAC STI2D SIN",
+      "school": "le gaross",
+      "adress": "Auch, 32013",
+      "year": "2019 – 2020"
     }
   ],
   "experiences": [
     {
-      "role": "Stage développeur d'application mobile",
-      "company": "Once Upon a Time",
-      "year": "2022 (6 semaines)"
+      "role": "Alternance développeur d'application web",
+      "company": "Bespoke",
+      "year": "2025 (2 ans)"
     },
     {
       "role": "Alternance développeur d'application web",
@@ -41,9 +41,9 @@
       "year": "2024 (1 ans)"
     },
     {
-      "role": "Alternance développeur d'application web",
-      "company": "Bespoke",
-      "year": "2025 (2 ans)"
+      "role": "Stage développeur d'application mobile",
+      "company": "Once Upon a Time",
+      "year": "2022 (6 semaines)"
     }
   ]
 }
