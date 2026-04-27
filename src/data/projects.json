@@ -1,0 +1,128 @@
+{
+  "projects": [
+    {
+      "title": "Synkro",
+      "description": "Plateforme collaborative tout-en-un : visioconférence WebRTC, chat, tableau blanc et édition de documents en temps réel.",
+      "fullDescription": "Synkro centralise en une seule application les outils de collaboration d'équipe : visioconférence via WebRTC, chat en temps réel, tableau blanc interactif avec sticky notes, et édition collaborative de documents grâce à Yjs. Le système de permissions granulaire (éditeur, commentateur, lecteur, dessinateur) permet de gérer finement les accès aux salles publiques ou privées. L'authentification passe par Google OAuth2 et le projet est entièrement containerisé avec Docker, avec un monitoring via Uptime Kuma.",
+      "features": [
+        "Édition collaborative temps réel avec Yjs (snapshots & rollback)",
+        "Visioconférence et chat WebRTC intégrés",
+        "Tableau blanc collaboratif avec outils de dessin",
+        "Système de permissions granulaire par rôle",
+        "Salles publiques/privées avec protection par mot de passe",
+        "Authentification Google OAuth2"
+      ],
+      "image": "/images/projects/synkro.png",
+      "github": "https://github.com/melwin-duquenne/synkro",
+      "tags": [
+        "Vue 3",
+        "Symfony",
+        "Node.js",
+        "PostgreSQL",
+        "Docker",
+        "WebRTC",
+        "Yjs"
+      ]
+    },
+    {
+      "title": "GaiaFloris",
+      "description": "Application web dédiée aux plantes : identification par scan, botadex encyclopédique, carte interactive et blog communautaire.",
+      "fullDescription": "GaiaFloris est une plateforme complète dédiée à la découverte du monde végétal. Elle propose un système d'identification de plantes par scan, un botadex pour explorer et cataloguer les espèces, une carte interactive basée sur Leaflet pour localiser les observations, un blog communautaire, et un système de missions pour engager les utilisateurs. Le projet adopte une architecture fullstack découplée avec un frontend React + Redux et un backend Symfony containerisé sous Docker.",
+      "features": [
+        "Identification de plantes par scan avec résultat détaillé",
+        "Botadex : encyclopédie végétale complète",
+        "Carte interactive Leaflet des observations",
+        "Blog communautaire avec gestion des articles",
+        "Système de missions et gamification",
+        "Gestion de compte utilisateur complète"
+      ],
+      "image": "https://github.com/melwin-duquenne/GaiaFloris/blob/main/front/public/assets/images/logo-gaia.png?raw=true",
+      "github": "https://github.com/melwin-duquenne/GaiaFloris",
+      "tags": [
+        "React",
+        "Redux",
+        "Symfony",
+        "PHP",
+        "Tailwind CSS",
+        "Docker",
+        "Leaflet"
+      ]
+    },
+    {
+      "title": "Design System",
+      "description": "Librairie de composants Vue 3 avec pipeline Figma → tokens → CSS, documentation Storybook et 68 tests d'accessibilité automatisés.",
+      "fullDescription": "Un design system complet construit avec Vue 3 et TypeScript, structuré en Atoms, Molecules et Organisms (19 composants au total). Le pipeline de tokens design est entièrement automatisé : les tokens sont définis dans Figma via Tokens Studio, transformés par Style Dictionary en variables CSS et exports TypeScript, et déployés via GitHub Actions. Chaque composant est documenté dans Storybook avec des guides MDX, et 68 tests d'accessibilité axe-core sont exécutés en CI/CD pour garantir la conformité WCAG.",
+      "features": [
+        "19 composants (Button, Input, Card, Alert, Header, Sidebar…)",
+        "Pipeline Figma → Tokens Studio → CSS variables automatisé",
+        "Support thème clair / sombre",
+        "Documentation interactive Storybook v10",
+        "68 tests d'accessibilité axe-core en CI/CD",
+        "GitHub Actions pour déploiement continu"
+      ],
+      "image": "/images/projects/design-system.png",
+      "github": "https://github.com/melwin-duquenne/design-system",
+      "tags": [
+        "Vue 3",
+        "TypeScript",
+        "Storybook",
+        "Figma",
+        "GitHub Actions",
+        "Vite"
+      ]
+    },
+    {
+      "title": "Pendu Clean",
+      "description": "Jeu du pendu implémenté avec une Clean Architecture stricte : Domain, Use Cases, Adapters et Frameworks complètement découplés.",
+      "fullDescription": "Au-delà du simple jeu du pendu, ce projet est avant tout une démonstration rigoureuse de la Clean Architecture appliquée à une application TypeScript. La logique métier (Domain) est totalement indépendante du framework (Next.js) et de la couche de stockage. Chaque couche est testée isolément avec Jest. Le jeu propose plusieurs niveaux de difficulté, des catégories de mots, une gestion des scores persistée via API Next.js, et une interface rétro/arcade soignée.",
+      "features": [
+        "Clean Architecture stricte (Domain / Use Cases / Adapters / Frameworks)",
+        "Injection de dépendances sans couplage framework",
+        "Tests unitaires Jest sur toutes les couches",
+        "Multi-niveaux, catégories et gestion des scores",
+        "Persistance des scores via API Next.js",
+        "Interface rétro/arcade"
+      ],
+      "image": "/images/projects/pendu-clean.png",
+      "github": "https://github.com/melwin-duquenne/pendu_clean",
+      "tags": [
+        "Next.js",
+        "TypeScript",
+        "Jest",
+        "React",
+        "Tailwind CSS",
+        "Clean Architecture"
+      ]
+    },
+    {
+      "title": "La Taverne du Héros",
+      "description": "Application D&D pour Game Masters et joueurs : création de scénarios, bestiaire interactif via l'API D&D 5e et gestion de personnages.",
+      "fullDescription": "La Taverne du Héros est une application web pensée pour les passionnés de Donjons & Dragons. Les Game Masters peuvent créer et gérer leurs scénarios avec un éditeur intégré, tandis que les joueurs gèrent et personnalisent leurs personnages. Un bestiaire interactif connecté à l'API officielle D&D 5e permet de consulter toutes les créatures du jeu. L'interface adopte une esthétique médiévale-fantastique immersive pour renforcer l'atmosphère de jeu.",
+      "features": [
+        "Création et gestion de scénarios avec éditeur intégré",
+        "Bestiaire interactif connecté à l'API D&D 5e",
+        "Gestion et personnalisation des personnages joueurs",
+        "Authentification distincte GM / Joueur",
+        "Interface médiévale-fantastique immersive"
+      ],
+      "image": "https://github.com/melwin-duquenne/d-d-react-project/blob/main/public/logo.webp?raw=true",
+      "github": "https://github.com/melwin-duquenne/d-d-react-project",
+      "tags": ["Next.js", "TypeScript", "Tailwind CSS", "D&D 5e API", "React"]
+    },
+    {
+      "title": "Roomis",
+      "description": "Application de gestion de salles avec backend PHP, frontend Vue.js, tests end-to-end Cypress et containerisation Docker.",
+      "fullDescription": "Roomis est une application fullstack de gestion de salles et d'hébergements. Le backend PHP expose une API consommée par le frontend Vue.js. Le projet met l'accent sur la qualité : les tests backend sont couverts par PHPUnit et les tests frontend par Cypress pour garantir le comportement end-to-end. L'ensemble est containerisé avec Docker Compose pour un déploiement reproductible.",
+      "features": [
+        "Gestion complète des salles et disponibilités",
+        "Architecture fullstack découplée (API PHP + Vue.js)",
+        "Tests backend PHPUnit",
+        "Tests end-to-end Cypress",
+        "Containerisation Docker Compose"
+      ],
+      "image": "https://github.com/melwin-duquenne/roomis/blob/main/frontend/public/images/basic/123.png?raw=true",
+      "github": "https://github.com/melwin-duquenne/roomis",
+      "tags": ["Vue.js", "PHP", "Docker", "Cypress", "PHPUnit"]
+    }
+  ]
+}

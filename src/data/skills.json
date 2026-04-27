@@ -1,0 +1,83 @@
+{
+  "categories": [
+    {
+      "name": "Frontend",
+      "skills": [
+        { "name": "HTML / CSS", "icon": "/images/skills/html.svg", "level": 5 },
+        {
+          "name": "JavaScript",
+          "icon": "/images/skills/javascript.svg",
+          "level": 4
+        },
+        {
+          "name": "Typescript",
+          "icon": "/images/skills/typescript.png",
+          "level": 4
+        },
+        { "name": "Vue.js", "icon": "/images/skills/vuejs.svg", "level": 4 },
+        { "name": "react", "icon": "/images/skills/react.webp", "level": 4 },
+        { "name": "next.js", "icon": "/images/skills/next.png", "level": 3 },
+        { "name": "nuxt.js", "icon": "/images/skills/nuxt.png", "level": 3 },
+        {
+          "name": "Tailwind",
+          "icon": "/images/skills/tailwind.png",
+          "level": 4
+        },
+        {
+          "name": "Angular",
+          "icon": "/images/skills/angular.png",
+          "level": 2
+        }
+      ]
+    },
+    {
+      "name": "Backend",
+      "skills": [
+        { "name": "Node.js", "icon": "/images/skills/nodejs.svg", "level": 3 },
+        { "name": "PHP", "icon": "/images/skills/php.svg", "level": 4 },
+        { "name": "Symfony", "icon": "/images/skills/symfony.svg", "level": 4 },
+        { "name": "Nestjs", "icon": "/images/skills/nestjs.svg", "level": 3 },
+        { "name": "Java", "icon": "/images/skills/java.png", "level": 2 }
+      ]
+    },
+    {
+      "name": "Base de données",
+      "skills": [
+        { "name": "MySQL", "icon": "/images/skills/mysql.svg", "level": 4 },
+        {
+          "name": "PostgreSQL",
+          "icon": "/images/skills/postgresql.svg",
+          "level": 4
+        }
+      ]
+    },
+    {
+      "name": "Conteneurisation",
+      "skills": [
+        { "name": "Docker", "icon": "/images/skills/docker.svg", "level": 4 },
+        { "name": "Kubernetes", "icon": "/images/skills/kube.png", "level": 3 }
+      ]
+    },
+    {
+      "name": "IDE & Outils",
+      "skills": [
+        { "name": "VS Code", "icon": "/images/skills/vscode.svg", "level": 5 },
+        { "name": "Zed", "icon": "/images/skills/zen.png", "level": 3 },
+        { "name": "Git", "icon": "/images/skills/git.svg", "level": 4 },
+        {
+          "name": "Windows",
+          "icon": "/images/skills/windows.webp",
+          "level": 4
+        },
+        { "name": "Linux", "icon": "/images/skills/linux.png", "level": 3 },
+        { "name": "Github", "icon": "/images/skills/github.svg", "level": 3 },
+        { "name": "Gitlab", "icon": "/images/skills/gitlab.png", "level": 4 },
+        {
+          "name": "Claude code",
+          "icon": "/images/skills/claude.svg",
+          "level": 4
+        }
+      ]
+    }
+  ]
+}

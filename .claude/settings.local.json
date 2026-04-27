@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create *)",
+      "Bash(cp -r \"D:/master/portfolio-temp/.\" \"D:/master/portfolio/\")",
+      "Bash(rm -rf \"D:/master/portfolio-temp\")",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(curl -s \"https://api.github.com/users/melwin-duquenne/repos?sort=pushed&per_page=20\")",
+      "Bash(python -c ' *)",
+      "Bash(node -e ' *)",
+      "WebFetch(domain:github.com)",
+      "Bash(curl -s \"https://api.github.com/search/repositories?q=gaiafloris+user:melwin-duquenne&per_page=5\")",
+      "Bash(node -e \"const c=[]; process.stdin.on\\('data',d=>c.push\\(d\\)\\); process.stdin.on\\('end',\\(\\)=>{ const r=JSON.parse\\(c.join\\(''\\)\\); console.log\\(JSON.stringify\\(r.items?.map\\(i=>\\({name:i.name, url:i.html_url, desc:i.description, lang:i.language}\\)\\),null,2\\)\\); }\\);\")",
+      "Bash(curl -s \"https://api.github.com/repos/melwin-duquenne/GaiaFloris\")",
+      "Bash(node -e \"const c=[]; process.stdin.on\\('data',d=>c.push\\(d\\)\\); process.stdin.on\\('end',\\(\\)=>{ const r=JSON.parse\\(c.join\\(''\\)\\); console.log\\('name:', r.name, '| msg:', r.message, '| desc:', r.description, '| lang:', r.language, '| private:', r.private\\); }\\);\")",
+      "Bash(curl -s \"https://raw.githubusercontent.com/melwin-duquenne/GaiaFloris/main/README.md\")",
+      "Bash(curl -s \"https://api.github.com/repos/melwin-duquenne/GaiaFloris/contents/\")",
+      "Bash(node -e \"const c=[]; process.stdin.on\\('data',d=>c.push\\(d\\)\\); process.stdin.on\\('end',\\(\\)=>{ const r=JSON.parse\\(c.join\\(''\\)\\); r.forEach\\(f=>console.log\\(f.name\\)\\); }\\);\")",
+      "Bash(curl -s \"https://api.github.com/repos/melwin-duquenne/GaiaFloris/contents/front\")",
+      "Bash(curl *)"
+    ]
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "name": "Melwin Duquenne",
+  "title": "Développeur Full Stack",
+  "intro": "Passionné par le développement web et les nouvelles technologies, je crée des applications modernes et performantes.",
+  "email": "melwinduquenne@gmail.com",
+  "studies": [
+    {
+      "degree": "BAC STI2D SIN",
+      "school": "le gaross",
+      "adress": "Auch, 32013",
+      "year": "2019 – 2020"
+    },
+    {
+      "degree": "BTS SIO SLAM",
+      "school": "pardailhan",
+      "adress": "Auch, 32013",
+      "year": "2021 – 2023"
+    },
+    {
+      "degree": "Licence concepteur developpeur d'application",
+      "school": "RI7",
+      "adress": "Aubagne, 13005",
+      "year": "2024 – 2025"
+    },
+    {
+      "degree": "Master ingénurie du web",
+      "school": "ESGI",
+      "adress": "Aix-en-Provence, 13080",
+      "year": "2025 – 2027"
+    }
+  ],
+  "experiences": [
+    {
+      "role": "Stage développeur d'application mobile",
+      "company": "Once Upon a Time",
+      "year": "2022 (6 semaines)"
+    },
+    {
+      "role": "Alternance développeur d'application web",
+      "company": "Actechsys",
+      "year": "2024 (1 ans)"
+    },
+    {
+      "role": "Alternance développeur d'application web",
+      "company": "Bespoke",
+      "year": "2025 (2 ans)"
+    }
+  ]
+}
