@@ -1462,3 +1462,136 @@ section {
 .modal-leave-to {
   opacity: 0;
 }
+
+/* ============================================================
+   Responsive — tablette & téléphone
+   Affinage mobile : nav compacte, titres maîtrisés, rythme resserré,
+   cibles tactiles confortables. Le desktop n'est pas affecté.
+   ============================================================ */
+
+/* ---------- Tablette ---------- */
+@media (max-width: 860px) {
+  .section-pad {
+    padding-block: clamp(72px, 10vh, 120px);
+  }
+}
+
+/* ---------- Téléphone ---------- */
+@media (max-width: 640px) {
+  :root {
+    --gutter: 20px;
+  }
+
+  /* Nav : logo raisonnable, 4 liens qui tiennent sur une ligne */
+  .nav {
+    padding: 16px var(--gutter);
+  }
+  .nav.scrolled {
+    padding-block: 11px;
+  }
+  .nav__logo img {
+    height: 42px;
+  }
+  .nav.scrolled .nav__logo img {
+    height: 34px;
+  }
+  .nav__links {
+    gap: 14px;
+  }
+  .nav__link {
+    font-size: 13px;
+    padding: 4px 0;
+  }
+
+  /* Rythme vertical resserré */
+  .section-pad {
+    padding-block: 64px;
+  }
+  .section-head {
+    margin-bottom: 40px;
+  }
+
+  /* Hero : titre maîtrisé, CTA pleine largeur (cible tactile) */
+  .hero__inner {
+    padding-top: 104px;
+    padding-bottom: 84px;
+  }
+  .hero__name {
+    font-size: clamp(52px, 17vw, 92px);
+  }
+  .hero__sub {
+    font-size: 16px;
+  }
+  .hero__cta {
+    gap: 14px;
+  }
+  .hero__cta .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Panorama : remplit toute la hauteur (cover) ; recadrage latéral
+     inévitable en portrait, mais on voit ciel → crêtes → premier plan. */
+  .hero__photo {
+    background-size: cover;
+    background-position: center center;
+  }
+
+  /* About : pas de débordement (email, infos longues) */
+  .about__top {
+    margin-bottom: 48px;
+  }
+  .about__meta {
+    gap: 12px;
+  }
+  .meta-row {
+    padding: 13px 16px;
+  }
+  .meta-row > div {
+    min-width: 0;
+  }
+  .meta-row b {
+    overflow-wrap: anywhere;
+  }
+
+  /* Contact : titre maîtrisé + actions empilées pleine largeur */
+  .contact__title {
+    font-size: clamp(44px, 14vw, 72px);
+  }
+  .contact__actions {
+    gap: 12px;
+    margin-top: 34px;
+  }
+
+  /* Footer empilé proprement */
+  .footer .wrap {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  /* Modale : occupe mieux le petit écran */
+  .modal {
+    padding: 16px 12px;
+  }
+  .modal__panel,
+  .modal__panel--wide {
+    border-radius: 18px;
+  }
+}
+
+/* ---------- Petits téléphones ---------- */
+@media (max-width: 380px) {
+  .nav__links {
+    gap: 11px;
+  }
+  .nav__link {
+    font-size: 12px;
+  }
+  .nav__logo img {
+    height: 38px;
+  }
+  .nav.scrolled .nav__logo img {
+    height: 32px;
+  }
+}
