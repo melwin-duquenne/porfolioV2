@@ -6,8 +6,9 @@ Portfolio personnel one-page construit avec **Vue 3**, **Vite** et **Tailwind CS
 
 - **Vue 3** + Composition API (`<script setup>`)
 - **Vite 8**
-- **Tailwind CSS v4** (plugin `@tailwindcss/vite`, zéro config file)
-- **DM Serif Display** + **Outfit** (Google Fonts)
+- **Tailwind CSS v4** (plugin `@tailwindcss/vite`, zéro config file) + CSS maison dans `style.css`
+- **Archivo** + **Playfair Display** + **Space Mono** (Google Fonts)
+- Animations maison via composables (Web Animations API, IntersectionObserver)
 
 ## Structure du projet
 
@@ -15,20 +16,25 @@ Portfolio personnel one-page construit avec **Vue 3**, **Vite** et **Tailwind CS
 portfolio/
 ├── public/
 │   └── images/
-│       ├── skills/        # Icônes SVG/PNG des technologies
 │       └── projects/      # Captures d'écran des projets
 ├── src/
 │   ├── data/              # ← Tout le contenu est ici
 │   │   ├── about.json
 │   │   ├── skills.json
-│   │   └── projects.json
+│   │   ├── projects.json
+│   │   └── legal.json
 │   ├── components/
 │   │   ├── ui/
 │   │   │   ├── NavLink.vue
-│   │   │   ├── SectionTitle.vue
-│   │   │   ├── SkillBadge.vue
+│   │   │   ├── SectionHead.vue
+│   │   │   ├── SkillCard.vue
+│   │   │   ├── SvgIcon.vue
+│   │   │   ├── TimelineCol.vue
+│   │   │   ├── CustomCursor.vue
+│   │   │   ├── BaseModal.vue
 │   │   │   ├── ProjectCard.vue
-│   │   │   └── ProjectModal.vue
+│   │   │   ├── ProjectModal.vue
+│   │   │   └── LegalModal.vue
 │   │   ├── layout/
 │   │   │   ├── NavBar.vue
 │   │   │   └── Footer.vue
@@ -38,6 +44,12 @@ portfolio/
 │   │       ├── SkillsSection.vue
 │   │       ├── ProjectsSection.vue
 │   │       └── ContactSection.vue
+│   ├── composables/        # Logique d'animation/scroll réutilisable
+│   │   ├── useReveal.js         # reveal-on-scroll (IntersectionObserver + WAAPI)
+│   │   ├── useScrollSpy.js      # section active dans la nav + état "scrolled"
+│   │   ├── useScrollProgress.js # barre de progression de scroll
+│   │   ├── useParallax.js       # parallax du hero (souris + scroll)
+│   │   └── useMagnetic.js       # boutons magnétiques au survol
 │   ├── App.vue
 │   ├── main.js
 │   └── style.css
@@ -55,35 +67,49 @@ Tout le contenu du portfolio se modifie uniquement dans `src/data/`. Aucun compo
 ```json
 {
   "name": "Prénom Nom",
-  "title": "Développeur Full Stack",
-  "intro": "Phrase d'accroche.",
+  "first": "Prénom",
+  "last": "Nom",
+  "role": "Développeur Full Stack",
   "email": "email@exemple.com",
+  "github": "https://github.com/user",
+  "location": "Ville (00), France",
+  "formationShort": "Master … · École",
+  "intro": "Phrase d'accroche du hero.",
+  "lede": "Paragraphe de présentation (À propos). Le HTML inline est autorisé, ex. <em>…</em>.",
+  "contactLede": "Phrase d'accroche de la section Contact.",
   "studies": [
     { "degree": "BTS SIO SLAM", "school": "École", "adress": "Ville", "year": "2021 – 2023" }
   ],
   "experiences": [
-    { "role": "Alternance développeur web", "company": "Société", "year": "2024 (1 an)" }
+    { "role": "Alternance développeur web", "company": "Société", "year": "2024 · 1 an" }
   ]
 }
 ```
+
+- `first` / `last` alimentent le hero ; `name` reste utilisé pour le copyright et les mentions légales
+- `lede` est rendu en HTML (`v-html`) — contenu de confiance uniquement
 
 ### `skills.json`
 
 ```json
 {
+  "marquee": ["Vue 3", "Symfony", "TypeScript", "Docker", "…"],
   "categories": [
     {
       "name": "Frontend",
       "skills": [
-        { "name": "Vue.js", "icon": "/images/skills/vuejs.svg", "level": 4 }
+        { "name": "Vue.js", "level": 4, "mono": "V", "color": "#42b883", "fg": "#1a1a1a" }
       ]
     }
   ]
 }
 ```
 
-- `level` : entier de 1 à 5 (affiché en ronds terracotta)
-- `icon` : chemin vers `public/images/skills/`
+- `marquee` : liste de libellés défilant en boucle en tête de section
+- `level` : entier de 1 à 5 (barre de progression)
+- `mono` : 1–3 caractères affichés dans la pastille (plus d'images d'icônes)
+- `color` : couleur de fond de la pastille
+- `fg` : couleur du texte de la pastille (optionnel, blanc par défaut)
 
 ### `projects.json`
 
@@ -114,15 +140,21 @@ Tout le contenu du portfolio se modifie uniquement dans `src/data/`. Aucun compo
 | À propos | `AboutSection.vue` | `about.json` |
 | Compétences | `SkillsSection.vue` | `skills.json` |
 | Projets | `ProjectsSection.vue` | `projects.json` |
-| Contact | `ContactSection.vue` | `about.json` (email) |
+| Contact | `ContactSection.vue` | `about.json` (email, github, contactLede) |
 
 ## Fonctionnalités notables
 
-- **Navbar** : fixe, devient opaque + ombre au scroll, menu burger sur mobile
-- **Smooth scroll** : navigation par ancre (`#about`, `#skills`, etc.)
-- **Modal projet** : clic sur une carte → modal avec description complète, features et lien GitHub. Fermeture via ✕, clic backdrop ou touche `Échap`
-- **SkillBadge** : fallback automatique si l'icône est manquante (initiale colorée)
-- **ProjectCard** : fallback image élégant, overlay "Voir plus" au hover
+- **Navbar** : fixe, devient opaque + ombre au scroll, lien actif mis en évidence (scrollspy via `useScrollSpy`)
+- **Smooth scroll** : navigation par ancre (`#apropos`, `#competences`, `#projets`, `#contact`)
+- **Barre de progression** de scroll en haut de page (`useScrollProgress`)
+- **Reveal-on-scroll** : les éléments `.reveal` apparaissent à l'entrée dans le viewport (`useReveal`, Web Animations API)
+- **Hero animé** : parallax de la photo (`useParallax`) et entrée des mots du nom
+- **Curseur personnalisé** + boutons magnétiques (`CustomCursor`, `useMagnetic`) — désactivés sur écran tactile
+- **Accessibilité mouvement** : tout est neutralisé si `prefers-reduced-motion` est actif (flag `anim-on`/`anim-off` posé dans `main.js`)
+- **Modales** (`BaseModal`) : projet et mentions légales. Fermeture via ✕, clic backdrop ou touche `Échap`, scroll du body verrouillé
+- **Section Compétences** : pastilles `mono`/`color` + barre de niveau ; bandeau marquee
+- **ProjectCard** : effet de tilt au survol, fallback image élégant (initiale + dégradé)
+- **Contact** : bouton « Copier l'adresse » (clipboard API avec repli silencieux)
 
 ## Commandes
 
@@ -149,9 +181,10 @@ Pas de Vue Router → pas de redirects SPA à configurer.
 
 Éditer `src/data/skills.json`, ajouter dans la bonne catégorie :
 ```json
-{ "name": "NomTech", "icon": "/images/skills/nomtech.svg", "level": 3 }
+{ "name": "NomTech", "level": 3, "mono": "Nt", "color": "#336699", "fg": "#fff" }
 ```
-Déposer l'icône dans `public/images/skills/`.
+Aucune image à déposer : la pastille est rendue à partir de `mono` + `color`.
+Pour l'ajouter au bandeau défilant, compléter le tableau `marquee`.
 
 ### Nouveau projet
 

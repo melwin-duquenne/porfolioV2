@@ -1,35 +1,34 @@
 <template>
-  <section id="projects" class="bg-white px-6 py-24">
-    <div class="mx-auto max-w-5xl">
-      <SectionTitle title="Projets" />
+  <section id="projets" class="section-pad">
+    <div class="wrap">
+      <SectionHead :kicker="`Sélection — ${projects.length} projets`">Projets</SectionHead>
 
-      <div class="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+      <div class="proj-grid">
         <ProjectCard
-          v-for="project in projectsData.projects"
+          v-for="(project, i) in projects"
           :key="project.title"
           :title="project.title"
           :description="project.description"
           :image="project.image"
           :github="project.github"
           :tags="project.tags"
+          :index="i"
           @open="openProject = project"
         />
       </div>
     </div>
 
-    <ProjectModal
-      :project="openProject"
-      @close="openProject = null"
-    />
+    <ProjectModal :project="openProject" @close="openProject = null" />
   </section>
 </template>
 
 <script setup>
 import { ref } from 'vue'
-import SectionTitle  from '../ui/SectionTitle.vue'
-import ProjectCard   from '../ui/ProjectCard.vue'
-import ProjectModal  from '../ui/ProjectModal.vue'
-import projectsData  from '../../data/projects.json'
+import SectionHead from '../ui/SectionHead.vue'
+import ProjectCard from '../ui/ProjectCard.vue'
+import ProjectModal from '../ui/ProjectModal.vue'
+import projectsData from '../../data/projects.json'
 
+const projects = projectsData.projects
 const openProject = ref(null)
 </script>

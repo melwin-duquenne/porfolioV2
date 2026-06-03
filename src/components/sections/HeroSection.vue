@@ -1,123 +1,116 @@
 <template>
-    <section
-        id="hero"
-        class="relative flex min-h-screen flex-col justify-center overflow-hidden bg-parchment px-6 pt-20"
-    >
-        <!-- Grille de points décorative -->
-        <div
-            class="pointer-events-none absolute inset-0 opacity-50"
-            style="
-                background-image: radial-gradient(
-                    circle,
-                    #d8d4cc 1.5px,
-                    transparent 1.5px
-                );
-                background-size: 30px 30px;
-            "
-        ></div>
+  <section id="hero" ref="section" class="hero">
+    <div class="hero__media">
+      <div class="hero__sky"></div>
+      <div ref="photo" class="hero__photo"></div>
+      <div class="hero__grad"></div>
+    </div>
 
-        <!-- Lueur douce en haut à droite -->
-        <div
-            class="pointer-events-none absolute -right-40 -top-20 h-[700px] w-[700px] rounded-full bg-accent-light opacity-40 blur-3xl"
-        ></div>
+    <div class="wrap hero__inner">
+      <div class="hero__eyebrow">
+        <span class="kicker">Portfolio — {{ role }}</span>
+      </div>
 
-        <div class="relative mx-auto w-full max-w-5xl">
-            <!-- Eyebrow -->
-            <p
-                class="mb-6 text-xs font-medium uppercase tracking-[0.4em] text-accent"
-                style="
-                    animation: slideUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.05s
-                        both;
-                "
-            >
-                Portfolio · Développeur Full Stack
-            </p>
+      <h1 class="hero__name">
+        <span class="ln"><span class="wd">{{ first }}</span></span>
+        <span class="ln l2"><span class="wd">{{ last }}</span></span>
+      </h1>
 
-            <!-- Nom — énorme DM Serif Display -->
-            <h1
-                class="mb-6 font-serif leading-[0.88] text-ink"
-                style="
-                    font-size: clamp(3.8rem, 11vw, 9rem);
-                    animation: slideUp 0.85s cubic-bezier(0.16, 1, 0.3, 1) 0.15s
-                        both;
-                "
-            >
-                <em class="text-ink-muted">{{ firstName }}</em
-                ><br />
-                {{ lastName }}
-            </h1>
+      <p ref="sub" class="hero__sub">{{ lede }}</p>
 
-            <!-- Ligne décorative -->
-            <div
-                class="mb-8 h-px w-20 bg-accent"
-                style="
-                    animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.35s
-                        both;
-                "
-            ></div>
+      <div ref="cta" class="hero__cta">
+        <a href="#projets" class="btn" data-cursor="voir">
+          Voir mes projets
+          <span class="ar"><SvgIcon name="arrow" width="16" height="16" /></span>
+        </a>
+        <a href="#contact" class="tlink" data-cursor>Me contacter</a>
+      </div>
+    </div>
 
-            <!-- Intro -->
-            <p
-                class="mb-10 max-w-md text-base leading-relaxed text-ink-muted"
-                style="
-                    animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.45s
-                        both;
-                "
-            >
-                {{ data.intro }}
-            </p>
-
-            <!-- CTA -->
-            <a
-                href="#about"
-                class="group inline-flex items-center gap-3 rounded-full bg-ink px-7 py-3.5 text-sm font-medium text-parchment transition-all duration-300 hover:bg-accent hover:gap-4"
-                style="
-                    animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.55s
-                        both;
-                "
-            >
-                En savoir plus
-                <svg
-                    class="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                >
-                    <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="1.5"
-                        d="M17 8l4 4m0 0l-4 4m4-4H3"
-                    />
-                </svg>
-            </a>
-        </div>
-
-        <!-- Indicateur de scroll -->
-        <div
-            class="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-3"
-            style="
-                animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.9s both;
-            "
-        >
-            <span
-                class="text-[9px] font-semibold uppercase tracking-[0.35em] text-ink-muted/50"
-                >Défiler</span
-            >
-            <div class="relative h-12 w-px overflow-hidden bg-warm-border">
-                <div
-                    class="absolute inset-0 bg-accent"
-                    style="animation: scrollLine 2.2s ease-in-out infinite"
-                ></div>
-            </div>
-        </div>
-    </section>
+    <div class="hero__scroll">
+      <span>défiler</span>
+      <span class="bar"></span>
+    </div>
+  </section>
 </template>
 
 <script setup>
-import aboutData from "../../data/about.json";
-const data = aboutData;
-const parts = data.name.split(" ");
-const firstName = parts[0];
-const lastName = parts.slice(1).join(" ");
+import { ref, onMounted } from 'vue'
+import SvgIcon from '../ui/SvgIcon.vue'
+import aboutData from '../../data/about.json'
+import { useParallax } from '../../composables/useParallax'
+
+const first = aboutData.first
+const last = aboutData.last
+const role = aboutData.role
+const lede = aboutData.intro
+
+const section = ref(null)
+const photo = ref(null)
+const sub = ref(null)
+const cta = ref(null)
+
+// parallax de la couche photo (souris + scroll)
+useParallax(section, photo, { depth: 0.16 })
+
+// Entrée jouée via Web Animations API directement sur les nœuds (cf. handoff).
+onMounted(() => {
+  const animOn = document.documentElement.classList.contains('anim-on')
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  if (!animOn || reduced) return
+
+  const safe = (node, frames, opts) => {
+    if (!node || !node.animate) return
+    let a
+    try {
+      a = node.animate(frames, opts)
+    } catch (e) {
+      return
+    }
+    const end = frames[frames.length - 1]
+    setTimeout(() => {
+      try {
+        if (a.playState !== 'finished') {
+          Object.entries(end).forEach(([k, v]) => {
+            node.style[k] = v
+          })
+          a.cancel()
+        }
+      } catch (e) {
+        /* noop */
+      }
+    }, (opts.delay || 0) + (opts.duration || 0) + 120)
+  }
+
+  // chaque mot du nom monte de translateY(110%) -> 0
+  section.value.querySelectorAll('.hero__name .wd').forEach((w, i) => {
+    safe(
+      w,
+      [{ transform: 'translateY(110%)' }, { transform: 'translateY(0)' }],
+      {
+        duration: 1050,
+        delay: 150 + i * 130,
+        easing: 'cubic-bezier(.16,1,.3,1)',
+        fill: 'backwards',
+      }
+    )
+  })
+
+  // sous-titre et CTA montent en fondu
+  ;[sub.value, cta.value].forEach((el, i) => {
+    safe(
+      el,
+      [
+        { opacity: 0, transform: 'translateY(20px)' },
+        { opacity: 1, transform: 'translateY(0)' },
+      ],
+      {
+        duration: 800,
+        delay: 550 + i * 150,
+        easing: 'ease',
+        fill: 'backwards',
+      }
+    )
+  })
+})
 </script>

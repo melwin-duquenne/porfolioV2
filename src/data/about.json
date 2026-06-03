@@ -1,8 +1,15 @@
 {
   "name": "Melwin Duquenne",
-  "title": "Développeur Full Stack",
-  "intro": "Passionné par le développement web et les nouvelles technologies, je crée des applications modernes et performantes.",
+  "first": "Melwin",
+  "last": "Duquenne",
+  "role": "Développeur Full Stack",
   "email": "melwinduquenne@gmail.com",
+  "github": "https://github.com/melwin-duquenne",
+  "location": "Nougaroulet (32), France",
+  "formationShort": "Master Ingénierie du Web · ESGI",
+  "intro": "Passionné par le développement web et les nouvelles technologies, je crée des applications modernes et performantes.",
+  "lede": "Je conçois et développe des <em>applications web complètes</em>, de l'architecture backend à l'expérience utilisateur. J'accorde une attention particulière à la qualité du code, à la fiabilité des solutions mises en place et à la maintenabilité des projets sur le long terme.",
+  "contactLede": "Une question, un projet ou une opportunité de collaboration ? Écrivez-moi — je réponds rapidement.",
   "studies": [
     {
       "degree": "Master ingénierie du web",
@@ -11,20 +18,20 @@
       "year": "2025 – 2027"
     },
     {
-      "degree": "Licence concepteur developpeur d'application",
+      "degree": "Licence concepteur développeur d'application",
       "school": "RI7",
       "adress": "Aubagne, 13005",
       "year": "2024 – 2025"
     },
     {
       "degree": "BTS SIO SLAM",
-      "school": "pardailhan",
+      "school": "Pardailhan",
       "adress": "Auch, 32013",
       "year": "2021 – 2023"
     },
     {
       "degree": "BAC STI2D SIN",
-      "school": "le gaross",
+      "school": "Le Garros",
       "adress": "Auch, 32013",
       "year": "2019 – 2020"
     }
@@ -33,17 +40,17 @@
     {
       "role": "Alternance développeur d'application web",
       "company": "Bespoke",
-      "year": "2025 (2 ans)"
+      "year": "2025 · 2 ans"
     },
     {
       "role": "Alternance développeur d'application web",
       "company": "Actechsys",
-      "year": "2024 (1 ans)"
+      "year": "2024 · 1 an"
     },
     {
       "role": "Stage développeur d'application mobile",
       "company": "Once Upon a Time",
-      "year": "2022 (6 semaines)"
+      "year": "2022 · 6 semaines"
     }
   ]
 }

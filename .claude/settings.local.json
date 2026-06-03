@@ -18,7 +18,14 @@
       "Bash(curl -s \"https://api.github.com/repos/melwin-duquenne/GaiaFloris/contents/\")",
       "Bash(node -e \"const c=[]; process.stdin.on\\('data',d=>c.push\\(d\\)\\); process.stdin.on\\('end',\\(\\)=>{ const r=JSON.parse\\(c.join\\(''\\)\\); r.forEach\\(f=>console.log\\(f.name\\)\\); }\\);\")",
       "Bash(curl -s \"https://api.github.com/repos/melwin-duquenne/GaiaFloris/contents/front\")",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "Bash(npx --no-install playwright --version)",
+      "Bash(pkill -f \"vite\")",
+      "Bash(gh pr *)",
+      "PowerShell(gh pr *)",
+      "Bash(git rev-list *)",
+      "Bash(git *)",
+      "PowerShell(npm run *)"
     ]
   }
 }

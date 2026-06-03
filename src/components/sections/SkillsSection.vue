@@ -1,31 +1,33 @@
 <template>
-  <section id="skills" class="bg-parchment-alt px-6 py-24">
-    <div class="mx-auto max-w-5xl">
-      <SectionTitle title="Compétences" />
+  <section id="competences" class="section-pad">
+    <div class="wrap">
+      <SectionHead kicker="Stack technique">Compétences</SectionHead>
+    </div>
 
-      <div class="space-y-12">
-        <div
-          v-for="category in skillsData.categories"
-          :key="category.name"
-        >
-          <!-- Séparateur de catégorie -->
-          <div class="mb-5 flex items-center gap-4">
-            <span class="text-[10px] font-semibold uppercase tracking-[0.3em] text-ink-muted shrink-0">
-              {{ category.name }}
-            </span>
-            <div class="h-px flex-1 bg-warm-border"></div>
-          </div>
+    <div class="marquee-wrap reveal">
+      <div class="marquee">
+        <span v-for="(item, i) in marqueeLoop" :key="i">{{ item }}</span>
+      </div>
+    </div>
 
-          <!-- Grille de badges -->
-          <div class="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-            <SkillBadge
-              v-for="skill in category.skills"
-              :key="skill.name"
-              :name="skill.name"
-              :icon="skill.icon"
-              :level="skill.level"
-            />
-          </div>
+    <div class="wrap">
+      <div
+        v-for="group in skillsData.categories"
+        :key="group.name"
+        class="skill-group"
+      >
+        <div class="skill-group__label reveal">{{ group.name }}</div>
+        <div class="skill-grid">
+          <SkillCard
+            v-for="(skill, i) in group.skills"
+            :key="skill.name"
+            :name="skill.name"
+            :level="skill.level"
+            :mono="skill.mono"
+            :color="skill.color"
+            :fg="skill.fg"
+            :index="i"
+          />
         </div>
       </div>
     </div>
@@ -33,7 +35,10 @@
 </template>
 
 <script setup>
-import SectionTitle from '../ui/SectionTitle.vue'
-import SkillBadge   from '../ui/SkillBadge.vue'
-import skillsData   from '../../data/skills.json'
+import SectionHead from '../ui/SectionHead.vue'
+import SkillCard from '../ui/SkillCard.vue'
+import skillsData from '../../data/skills.json'
+
+// duplique la liste pour un défilement infini (translateX -50%)
+const marqueeLoop = [...skillsData.marquee, ...skillsData.marquee]
 </script>
