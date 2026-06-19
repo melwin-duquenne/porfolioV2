@@ -30,6 +30,16 @@
         >
           <SvgIcon name="code" />
         </a>
+        <a
+          class="social"
+          :href="linkedin"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="LinkedIn"
+          data-cursor
+        >
+          <SvgIcon name="linkedin" />
+        </a>
         <a class="social" :href="`mailto:${email}`" aria-label="Email" data-cursor>
           <SvgIcon name="mail" />
         </a>
@@ -45,6 +55,7 @@ import aboutData from '../../data/about.json'
 
 const email = aboutData.email
 const github = aboutData.github
+const linkedin = aboutData.linkedin
 const contactLede = aboutData.contactLede
 
 const copied = ref(false)
