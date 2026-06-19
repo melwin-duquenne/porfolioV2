@@ -1,4 +1,4 @@
-import { createApp } from 'vue'
+import { createSSRApp } from 'vue'
 import './style.css'
 import App from './App.vue'
 
@@ -12,4 +12,6 @@ if (!reduced && !window.matchMedia('(hover: none)').matches) {
   document.body.classList.add('cursor-on')
 }
 
-createApp(App).mount('#app')
+// createSSRApp + mount = hydratation du HTML prérendu (cf. scripts/prerender.mjs).
+// Sans prérendu (#app vide), Vue monte normalement à la place.
+createSSRApp(App).mount('#app')
