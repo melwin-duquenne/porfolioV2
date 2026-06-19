@@ -25,7 +25,16 @@
       "PowerShell(gh pr *)",
       "Bash(git rev-list *)",
       "Bash(git *)",
-      "PowerShell(npm run *)"
+      "PowerShell(npm run *)",
+      "Bash(gh api *)",
+      "PowerShell(gh api *)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:porfolio-v2.vercel.app)",
+      "Bash(grep -oE \"\\(--[a-z-]+:\\\\s*#[0-9a-fA-F]{3,8}\\)\" src/style.css)",
+      "PowerShell($p = Start-Process npm -ArgumentList \"run\",\"preview\" -PassThru -WindowStyle Hidden; Start-Sleep -Seconds 4; try { $r = Invoke-WebRequest \"http://localhost:4173/\" -UseBasicParsing; \"STATUS: $\\($r.StatusCode\\)\"; if \\($r.Content -match \"Melwin\" -and $r.Content -match \"Travaillons\" -and $r.Content -match \"og:image\"\\) { \"OK: contenu prerendu + meta servis\" } else { \"PROBLEME contenu\" } } catch { \"ERREUR: $_\" } finally { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue })",
+      "Bash(npx vite *)",
+      "Read(//tmp/**)",
+      "Bash(kill %1)"
     ]
   }
 }

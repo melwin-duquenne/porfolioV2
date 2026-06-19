@@ -25,6 +25,32 @@
       ]
     },
     {
+      "title": "Michelin Aurora",
+      "description": "Plateforme PWA de télémétrie IoT et de planification d'itinéraires pour la gamme de pneus vélo Michelin, réalisée en hackathon à 3 développeurs en 3 jours.",
+      "fullDescription": "Michelin Aurora est une application web premium imaginée lors d'un hackathon (Skolae/ESGI 2026) pour la gamme de pneus vélo « LB 2 Wheels » de Michelin. Conçue à 3 développeurs en seulement 3 jours, elle réunit cinq modules : génération d'itinéraires personnalisés (route, VTT, gravel, e-bike), guide de pression dynamique recommandant le bon PSI selon la météo, dashboard de télémétrie temps réel alimenté par un simulateur ESP32, programme de fidélité gamifié convertissant les points de roulage en codes promo, et un parcours de conversion business avec localisateur de magasins. Le tout repose sur une architecture découplée Nuxt 3 / Symfony 7 (API Platform) avec communication temps réel via Mercure, SSE et WebSockets, le tout containerisé sous Docker.",
+      "features": [
+        "Génération d'itinéraires personnalisés (route, VTT, gravel, e-bike)",
+        "Guide de pression dynamique (PSI) selon la météo",
+        "Dashboard de télémétrie IoT temps réel via simulateur ESP32",
+        "Programme de fidélité gamifié (points de roulage → codes promo)",
+        "Conversion business avec recommandations d'équipement et localisateur de magasins",
+        "Temps réel via Mercure, Server-Sent Events et WebSockets",
+        "PWA containerisée Docker avec CI/CD GitHub Actions"
+      ],
+      "image": "https://github.com/EkinOox/michelin-aurora/blob/main/apps/front/public/icons/michelin_aurora_fiveicon.svg?raw=true",
+      "github": "https://github.com/EkinOox/michelin-aurora",
+      "tags": [
+        "Nuxt 3",
+        "Vue.js",
+        "Symfony 7",
+        "API Platform",
+        "PostgreSQL",
+        "Mercure",
+        "Python",
+        "Docker"
+      ]
+    },
+    {
       "title": "GaiaFloris",
       "description": "Application web dédiée aux plantes : identification par scan, botadex encyclopédique, carte interactive et blog communautaire.",
       "fullDescription": "GaiaFloris est une plateforme complète dédiée à la découverte du monde végétal. Elle propose un système d'identification de plantes par scan, un botadex pour explorer et cataloguer les espèces, une carte interactive basée sur Leaflet pour localiser les observations, un blog communautaire, et un système de missions pour engager les utilisateurs. Le projet adopte une architecture fullstack découplée avec un frontend React + Redux et un backend Symfony containerisé sous Docker.",
