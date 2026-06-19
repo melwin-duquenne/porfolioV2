@@ -5,8 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && vite build --ssr src/entry-server.js --outDir .ssr-dist && node scripts/prerender.mjs",
-    "build:client": "vite build",
+    "build": "vite build",
     "preview": "vite preview",
     "gen:og": "node scripts/gen-og.mjs"
   },

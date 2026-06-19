@@ -48,9 +48,18 @@ par le nom « Melwin Duquenne ».
 - `ContactSection.vue` : lien social LinkedIn
 - LinkedIn ajouté au `sameAs` du JSON-LD.
 
-## Repli
-Si le double build SSR échoue (Vite 8 très récent), on conserve les sections
-1, 3, 4, 5 — qui apportent l'essentiel du gain de findabilité.
+## Repli — APPLIQUÉ
+
+Le prerendering SSG (section 2) a été **retiré**. Raison : le site masque tout
+le contenu en CSS (`.anim-on .reveal:not([data-in]) { opacity: 0 }`) jusqu'à ce
+que le JS le « révèle ». Avec du HTML prérendu + hydratation, Vue détectait des
+« hydration mismatches » et laissait le contenu à `opacity:0` → page blanche en
+production. Le prerendering n'apportait de toute façon aucun gain visuel (contenu
+masqué tant que le JS ne tourne pas), et Googlebot exécute le JS.
+
+Conservé (l'essentiel de la findabilité) : sections 1, 3, 4, 5. Retour à
+`createApp` (SPA). `src/entry-server.js` et `scripts/prerender.mjs` supprimés,
+`build` revenu à `vite build`.
 
 ## Vérification
 - `npm run build` réussit.
