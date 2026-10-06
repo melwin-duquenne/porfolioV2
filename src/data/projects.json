@@ -1,6 +1,22 @@
 {
   "projects": [
     {
+      "title": "Candice Vionnet Sophrologie",
+      "description": "Site vitrine d'une sophrologue certifiée : présentation de la pratique, séances et tarifs, témoignages et prise de rendez-vous en ligne.",
+      "fullDescription": "Site professionnel réalisé pour Candice Vionnet, sophrologue certifiée RNCP exerçant à Vinon-sur-Verdon et Puyricard. Le site présente la sophrologie, le parcours de la praticienne, le déroulé des séances et les tarifs, ainsi que les informations pratiques des deux cabinets. Développé avec Nuxt en génération statique, il mise sur la performance et le référencement local : pages pré-rendues, images WebP optimisées, balises SEO et Open Graph complètes. La sécurité est renforcée par une Content-Security-Policy stricte avec vérification d'intégrité des scripts. La prise de rendez-vous est intégrée via Crénolibre, et l'identité visuelle douce et épurée reflète l'univers du bien-être. Projet client en production — le code source est privé.",
+      "features": [
+        "Site vitrine pré-rendu (génération statique Nuxt)",
+        "Prise de rendez-vous en ligne intégrée (Crénolibre)",
+        "Carrousel de témoignages clients",
+        "SEO local : meta, Open Graph, deux lieux de consultation",
+        "Content-Security-Policy stricte et intégrité des scripts (SRI)",
+        "Images WebP optimisées et design responsive"
+      ],
+      "image": "/images/projects/candice-vionnet.webp",
+      "site": "https://www.candice-vionnet-sophrologie.fr/",
+      "tags": ["Nuxt", "Vue.js", "SSG", "SEO", "Responsive"]
+    },
+    {
       "title": "Synkro",
       "description": "Plateforme collaborative tout-en-un : visioconférence WebRTC, chat, tableau blanc et édition de documents en temps réel.",
       "fullDescription": "Synkro centralise en une seule application les outils de collaboration d'équipe : visioconférence via WebRTC, chat en temps réel, tableau blanc interactif avec sticky notes, et édition collaborative de documents grâce à Yjs. Le système de permissions granulaire (éditeur, commentateur, lecteur, dessinateur) permet de gérer finement les accès aux salles publiques ou privées. L'authentification passe par Google OAuth2 et le projet est entièrement containerisé avec Docker, avec un monitoring via Uptime Kuma.",

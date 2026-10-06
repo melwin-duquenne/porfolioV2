@@ -19,6 +19,17 @@
         </template>
 
         <a
+          v-if="project.site"
+          class="btn btn--solid pm__cta"
+          :href="project.site"
+          target="_blank"
+          rel="noopener noreferrer"
+          data-cursor="site"
+        >
+          <SvgIcon name="external" /> Voir le site
+        </a>
+        <a
+          v-if="project.github"
           class="btn btn--solid pm__cta"
           :href="project.github"
           target="_blank"

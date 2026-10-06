@@ -35,14 +35,15 @@
     <div class="card__foot">
       <span class="gh tlink">Voir le détail <SvgIcon name="arrow" width="15" height="15" /></span>
       <a
+        v-if="link"
         class="gh tlink gh--code"
-        :href="github"
+        :href="link.href"
         target="_blank"
         rel="noopener noreferrer"
-        data-cursor="code"
+        :data-cursor="link.cursor"
         @click.stop
       >
-        <SvgIcon name="code" /> Code
+        <SvgIcon :name="link.icon" /> {{ link.label }}
       </a>
     </div>
   </article>
@@ -56,12 +57,20 @@ const props = defineProps({
   title: { type: String, required: true },
   description: { type: String, required: true },
   image: { type: String, required: true },
-  github: { type: String, required: true },
+  github: { type: String, default: '' },
+  site: { type: String, default: '' },
   tags: { type: Array, default: () => [] },
   index: { type: Number, default: 0 },
 })
 
 defineEmits(['open'])
+
+// lien du pied de carte : le code, ou le site en ligne pour un projet client au code privé
+const link = computed(() => {
+  if (props.github) return { href: props.github, icon: 'code', label: 'Code', cursor: 'code' }
+  if (props.site) return { href: props.site, icon: 'external', label: 'Site', cursor: 'site' }
+  return null
+})
 
 const card = ref(null)
 const imgError = ref(false)

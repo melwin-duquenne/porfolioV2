@@ -4,9 +4,9 @@ import { onMounted, onUnmounted } from 'vue'
  * Parallax du hero : la couche `target` suit la souris (depth) et le scroll
  * (facteur .18 × scrollY tant que scrollY < innerHeight). Cf. proto Hero.
  */
-export function useParallax(sectionRef, targetRef, { depth = 0.16 } = {}) {
+export function useParallax(sectionRef, targetRef, { depth = 0.16, enabled = () => true } = {}) {
   const animOn = () =>
-    document.documentElement.classList.contains('anim-on')
+    document.documentElement.classList.contains('anim-on') && enabled()
 
   function onMove(e) {
     if (!animOn()) return
@@ -21,7 +21,7 @@ export function useParallax(sectionRef, targetRef, { depth = 0.16 } = {}) {
 
   function onScroll() {
     const layer = targetRef.value
-    if (!layer) return
+    if (!layer || !enabled()) return
     const y = window.scrollY
     if (y > window.innerHeight) return
     layer.style.transform = `translateY(${y * depth * 0.18}px)`

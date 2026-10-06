@@ -11,6 +11,7 @@
           :description="project.description"
           :image="project.image"
           :github="project.github"
+          :site="project.site"
           :tags="project.tags"
           :index="i"
           @open="openProject = project"

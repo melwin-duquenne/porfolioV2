@@ -519,6 +519,30 @@ section {
   background-image: url("/images/hero-mountains.jpg");
   background-size: cover;
   background-position: center;
+  transition: opacity 1.4s ease, visibility 0s;
+}
+
+/* Montagne 3D : en fondu par-dessus la photo une fois prête */
+.hero__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 3;
+  display: block;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.4s ease;
+}
+.hero--3d .hero__canvas {
+  opacity: 1;
+}
+/* une fois le fondu terminé, la photo sort du rendu (plus de calque à garder en mémoire) */
+.hero--3d .hero__photo {
+  opacity: 0;
+  visibility: hidden;
+  will-change: auto;
+  transition: opacity 1.4s ease, visibility 0s 1.4s;
 }
 .hero__photo::after {
   content: "";
@@ -593,8 +617,7 @@ section {
   font-weight: 800;
   line-height: 0.88;
   letter-spacing: -0.03em;
-  font-size: clamp(58px, 13.5vw, 210px);
-  text-shadow: 0 2px 40px color-mix(in oklab, var(--bg) 60%, transparent);
+  font-size: clamp(50px, 10.5vw, 165px);
 }
 .hero__name .ln {
   display: block;
@@ -611,7 +634,7 @@ section {
 .hero__sub {
   margin-top: clamp(22px, 3vh, 34px);
   max-width: 46ch;
-  color: var(--muted);
+  color: var(--ink);
   font-size: clamp(16px, 1.5vw, 20px);
 }
 .hero__cta {
