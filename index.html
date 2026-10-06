@@ -13,7 +13,24 @@
     />
     <meta name="author" content="Melwin Duquenne" />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
-    <meta name="theme-color" content="#eef1e8" />
+    <!-- couleur de la barre du navigateur : posée par useTheme (lue dans le CSS) -->
+    <meta name="theme-color" content="" />
+    <script>
+      // Thème posé avant le premier rendu (pas de flash) : choix fait pendant
+      // cette visite, sinon l'heure du visiteur (nuit de 20 h à 7 h).
+      // Voir src/composables/useTheme.js.
+      ;(function () {
+        var t
+        try {
+          t = sessionStorage.getItem('theme')
+        } catch (e) {}
+        if (t !== 'dark' && t !== 'light') {
+          var h = new Date().getHours()
+          t = h >= 20 || h < 7 ? 'dark' : 'light'
+        }
+        document.documentElement.dataset.theme = t
+      })()
+    </script>
     <link rel="canonical" href="https://porfolio-v2.vercel.app/" />
 
     <!-- Open Graph -->

@@ -25,6 +25,9 @@
           <span class="ar"><SvgIcon name="arrow" width="16" height="16" /></span>
         </a>
         <a href="#contact" class="tlink" data-cursor>Me contacter</a>
+        <a :href="cv" class="tlink" download data-cursor>
+          Mon CV <SvgIcon name="download" width="16" height="16" />
+        </a>
       </div>
     </div>
 
@@ -36,15 +39,17 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import SvgIcon from '../ui/SvgIcon.vue'
 import aboutData from '../../data/about.json'
 import { useParallax } from '../../composables/useParallax'
+import { useTheme } from '../../composables/useTheme'
 
 const first = aboutData.first
 const last = aboutData.last
 const role = aboutData.role
 const lede = aboutData.intro
+const cv = aboutData.cv
 
 const section = ref(null)
 const photo = ref(null)
@@ -91,7 +96,10 @@ async function init3D() {
   try {
     const { createMountainScene } = await import('../../three/mountainScene.js')
     if (unmounted) return
-    scene3d = createMountainScene(canvas3d.value, { onSlow: teardown3D })
+    scene3d = await createMountainScene(canvas3d.value, { onSlow: teardown3D })
+    // construite par étapes : le composant a pu être démonté entre-temps
+    if (unmounted) return teardown3D()
+    scene3d.setNight(isDark.value) // immédiat : la boucle ne tourne pas encore
   } catch (e) {
     return // WebGL indisponible : on reste sur la photo
   }
@@ -103,6 +111,10 @@ async function init3D() {
   io.observe(section.value)
   is3D.value = true
 }
+
+// mode nuit de la montagne, calé sur le thème du site
+const { isDark } = useTheme()
+watch(isDark, (dark) => scene3d?.setNight(dark))
 
 onMounted(() => {
   const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 1200))

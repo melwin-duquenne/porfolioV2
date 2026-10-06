@@ -2,19 +2,21 @@
 
 /* ============================================================
    Design tokens exposed to Tailwind (so utilities stay usable)
+   Les couleurs pointent vers les variables du thème ci-dessous (« inline » :
+   les utilitaires suivent le jour / la nuit).
    ============================================================ */
-@theme {
-  --color-bg: #eef1e8;
-  --color-bg-2: #e6ebdd;
-  --color-panel: #f6f8f1;
-  --color-panel-2: #ffffff;
-  --color-ink: #18211a;
-  --color-muted: #5a6a5c;
-  --color-faint: #93a094;
-  --color-line: #d4ddca;
-  --color-green: #2f9d5b;
-  --color-green-2: #1f7a45;
-  --color-amber: #e08a3c;
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-2: var(--bg-2);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-green: var(--green);
+  --color-green-2: var(--green-2);
+  --color-amber: var(--amber);
   --font-display: "Archivo", system-ui, sans-serif;
   --font-serif: "Playfair Display", Georgia, serif;
   --font-mono: "Space Mono", ui-monospace, monospace;
@@ -78,8 +80,13 @@ ul {
   list-style: none;
 }
 
-/* ---------- Theme (Brume / light) ---------- */
-:root {
+/* ---------- Theme (Brume / light) ----------
+   SEULE SOURCE des couleurs du site. Ne pas les recopier ailleurs : la scène 3D
+   et useTheme les lisent via src/themeColors.js, scripts/gen-og.mjs lit ce fichier.
+   Les sélecteurs [data-theme] valent aussi pour n'importe quel élément, ce qui
+   permet de lire les valeurs d'un thème sans l'activer. */
+:root,
+[data-theme="light"] {
   --bg: #eef1e8;
   --bg-2: #e6ebdd;
   --panel: #f6f8f1;
@@ -94,6 +101,7 @@ ul {
   --on-green: #ffffff;
   --sky-1: #dde9dd;
   --sky-2: #e9f0e2;
+  --media-bg: var(--bg-2); /* fond derrière les logos des projets */
   --shadow: 0 30px 80px -44px rgba(24, 33, 26, 0.45);
   --glow: 0 0 0 1px color-mix(in oklab, var(--green) 40%, transparent),
     0 24px 60px -30px color-mix(in oklab, var(--green) 35%, transparent);
@@ -104,6 +112,52 @@ ul {
 
   --maxw: 1280px;
   --gutter: clamp(20px, 5vw, 90px);
+}
+
+/* ---------- Theme (Nuit / dark) — bascule via <html data-theme> ---------- */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f1513;
+  --bg-2: #131b17;
+  --panel: #161f1a;
+  --panel-2: #1b2620;
+  --ink: #e4ece3;
+  --muted: #9cae9f;
+  --faint: #66786a;
+  --line: #27332b;
+  --green: #4cbf7c;
+  --green-2: #6fd398;
+  --amber: #f0a560;
+  --on-green: #08130d;
+  --sky-1: #0b1220;
+  --sky-2: #121b2a; /* le brouillard de la scène 3D s'y fond (lu par la scène) */
+  --media-bg: #d9e0d3; /* logos pensés pour un fond clair : on le garde, adouci */
+  --shadow: 0 30px 80px -44px rgba(0, 0, 0, 0.8);
+}
+
+/* Couleurs déclarées comme <color> pour que le changement de thème soit un
+   fondu (une variable CSS ordinaire basculerait d'un coup). La valeur initiale
+   ne sert jamais : les deux thèmes ci-dessus définissent chaque couleur. */
+@property --bg { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --bg-2 { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --panel { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --panel-2 { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --ink { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --muted { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --faint { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --line { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --green { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --green-2 { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --amber { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --on-green { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --sky-1 { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --sky-2 { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --media-bg { syntax: "<color>"; inherits: true; initial-value: transparent; }
+:root.anim-on {
+  transition-property: --bg, --bg-2, --panel, --panel-2, --ink, --muted, --faint, --line,
+    --green, --green-2, --amber, --on-green, --sky-1, --sky-2, --media-bg;
+  transition-duration: 0.9s; /* ≈ la transition jour/nuit de la montagne 3D */
+  transition-timing-function: ease;
 }
 
 .cursor-on,
@@ -355,6 +409,49 @@ section {
   }
 }
 
+.nav__right {
+  display: flex;
+  align-items: center;
+  gap: clamp(14px, 2.4vw, 32px);
+}
+
+/* Bouton jour / nuit : lune le jour (pour passer en nuit), soleil la nuit */
+.theme-toggle {
+  position: relative;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  background: color-mix(in oklab, var(--panel) 60%, transparent);
+  display: grid;
+  place-items: center;
+  transition: border-color 0.3s, background-color 0.3s;
+}
+.theme-toggle:hover {
+  border-color: var(--green);
+}
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 3px;
+}
+.theme-toggle__icon {
+  grid-area: 1 / 1;
+  width: 18px;
+  height: 18px;
+  transition: opacity 0.45s ease, transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.theme-toggle__icon--sun,
+[data-theme="dark"] .theme-toggle__icon--moon {
+  opacity: 0;
+  transform: rotate(-90deg) scale(0.5);
+}
+[data-theme="dark"] .theme-toggle__icon--sun {
+  opacity: 1;
+  transform: none;
+}
+
 /* ============================================================ Buttons */
 .btn {
   position: relative;
@@ -394,8 +491,7 @@ section {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-}
-.btn .ar i {
+}.btn .ar i {
   width: 26px;
   height: 1.5px;
   background: currentColor;
@@ -519,7 +615,11 @@ section {
   background-image: url("/images/hero-mountains.jpg");
   background-size: cover;
   background-position: center;
-  transition: opacity 1.4s ease, visibility 0s;
+  transition: opacity 1.4s ease, visibility 0s, filter 0.9s ease;
+}
+/* photo (mobile, PC modeste) : la nuit, assombrie et bleutée */
+[data-theme="dark"] .hero__photo {
+  filter: brightness(0.38) saturate(0.55) hue-rotate(20deg);
 }
 
 /* Montagne 3D : en fondu par-dessus la photo une fois prête */
@@ -1013,6 +1113,10 @@ section {
   aspect-ratio: 16/11;
   background: var(--bg-2);
   overflow: hidden;
+}
+/* image (souvent un logo sur fond transparent) : fond propre au thème */
+.card__media:has(> img) {
+  background: var(--media-bg);
 }
 .card__media img,
 .card__media .img-fallback {
@@ -1519,11 +1623,25 @@ section {
     height: 34px;
   }
   .nav__links {
-    gap: 14px;
+    gap: 10px;
   }
   .nav__link {
-    font-size: 13px;
+    font-size: 12px;
     padding: 4px 0;
+  }
+  .nav__logo {
+    flex: none;
+  }
+  .nav__right {
+    gap: 10px;
+  }
+  .theme-toggle {
+    width: 30px;
+    height: 30px;
+  }
+  .theme-toggle__icon {
+    width: 15px;
+    height: 15px;
   }
 
   /* Rythme vertical resserré */
@@ -1606,10 +1724,13 @@ section {
 /* ---------- Petits téléphones ---------- */
 @media (max-width: 380px) {
   .nav__links {
-    gap: 11px;
+    gap: 8px;
+  }
+  .nav__right {
+    gap: 8px;
   }
   .nav__link {
-    font-size: 12px;
+    font-size: 11.5px;
   }
   .nav__logo img {
     height: 38px;

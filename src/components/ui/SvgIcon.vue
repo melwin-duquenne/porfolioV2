@@ -1,6 +1,12 @@
 <template>
-  <!-- Icônes SVG inline, reprises telles quelles du handoff -->
+  <!-- Icônes SVG inline, reprises telles quelles du handoff.
+       Taille par défaut : celle du texte autour (1em) ; un width/height passé au
+       composant ou une règle CSS la remplace. Sans taille, dans un conteneur flex,
+       un SVG s'écrase à 0 px. -->
   <svg
+    width="1em"
+    height="1em"
+    style="flex: none"
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
@@ -37,6 +43,20 @@
       <path d="M14 4h6v6" />
       <path d="M20 4 10 14" />
       <path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+    </template>
+    <template v-else-if="name === 'download'">
+      <path d="M12 4v11" />
+      <polyline points="7 10 12 15 17 10" />
+      <path d="M5 20h14" />
+    </template>
+    <template v-else-if="name === 'sun'">
+      <circle cx="12" cy="12" r="4" />
+      <path
+        d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"
+      />
+    </template>
+    <template v-else-if="name === 'moon'">
+      <path d="M20.5 14.5A8.5 8.5 0 1 1 9.5 3.5a6.5 6.5 0 0 0 11 11Z" />
     </template>
     <template v-else-if="name === 'close'">
       <path d="M6 6l12 12M18 6L6 18" />

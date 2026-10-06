@@ -17,6 +17,9 @@
         <button class="btn" :class="{ copied }" data-cursor @click="copy">
           <SvgIcon name="copy" /> {{ copied ? 'Adresse copiée' : "Copier l'adresse" }}
         </button>
+        <a class="btn" :href="cv" download data-cursor>
+          <SvgIcon name="download" /> Télécharger mon CV
+        </a>
       </div>
 
       <div class="socials reveal" data-d="4">
@@ -56,6 +59,7 @@ import aboutData from '../../data/about.json'
 const email = aboutData.email
 const github = aboutData.github
 const linkedin = aboutData.linkedin
+const cv = aboutData.cv
 const contactLede = aboutData.contactLede
 
 const copied = ref(false)
