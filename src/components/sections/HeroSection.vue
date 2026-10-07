@@ -75,9 +75,16 @@ function canUse3D() {
   if (navigator.deviceMemory && navigator.deviceMemory < 4) return false
   if (navigator.connection?.saveData) return false
   try {
-    const gl = document.createElement('canvas').getContext('webgl2')
-    gl?.getExtension('WEBGL_lose_context')?.loseContext() // sonde : on rend le contexte tout de suite
-    return !!gl
+    // failIfMajorPerformanceCaveat : pas de contexte si le GPU est émulé
+    const gl = document
+      .createElement('canvas')
+      .getContext('webgl2', { failIfMajorPerformanceCaveat: true })
+    if (!gl) return false
+    // rendu logiciel (pas de GPU : PageSpeed, VM, pilote absent) → des secondes de blocage
+    const info = gl.getExtension('WEBGL_debug_renderer_info')
+    const gpu = info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : ''
+    gl.getExtension('WEBGL_lose_context')?.loseContext() // sonde : on rend le contexte tout de suite
+    return !/swiftshader|llvmpipe|softpipe|software|basic render/i.test(gpu)
   } catch (e) {
     return false
   }

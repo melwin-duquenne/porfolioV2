@@ -1152,6 +1152,7 @@ export async function createMountainScene(canvas, { onSlow } = {}) {
   let last = 0
   let frames = 0
   let slowFrames = 0
+  let verySlow = 0 // images ≥ 100 ms (dt plafonné à 0.1)
   let checked = false
   // plafond 60 i/s : sur écran 120-165 Hz, la scène lente n'a pas besoin de plus
   const FRAME_MS = 1000 / 60
@@ -1173,6 +1174,12 @@ export async function createMountainScene(canvas, { onSlow } = {}) {
     if (!checked && elapsed > 0.5) {
       frames++
       if (dt > 1 / 30) slowFrames++
+      // machine à genoux : inutile d'attendre les 90 images pour abandonner
+      if (dt >= 0.1 && ++verySlow >= 5 && onSlow) {
+        checked = true
+        onSlow()
+        return
+      }
       if (frames >= 90) {
         checked = true
         if (slowFrames / frames > 0.4 && onSlow) {
