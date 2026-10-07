@@ -2,14 +2,19 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/images/md.png" />
+    <!-- Favicons : Google exige un carré multiple de 48 px pour l'afficher dans les résultats -->
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png" />
+    <link rel="icon" type="image/png" sizes="144x144" href="/favicon-144.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <!-- Primary SEO -->
-    <title>Melwin Duquenne — Développeur Full Stack (Vue, Symfony, TypeScript)</title>
+    <title>Melwin Duquenne — Développeur Full Stack</title>
     <meta
       name="description"
-      content="Melwin Duquenne, développeur full stack à Nougaroulet (32). Je conçois des applications web modernes et fiables — Vue, Symfony, TypeScript, Docker. Master Ingénierie du Web (ESGI)."
+      content="Melwin Duquenne, développeur full stack dans le Gers (32). Applications web fiables avec Vue, Symfony, TypeScript et Docker. Master Ingénierie du Web."
     />
     <meta name="author" content="Melwin Duquenne" />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
@@ -31,19 +36,19 @@
         document.documentElement.dataset.theme = t
       })()
     </script>
-    <link rel="canonical" href="https://porfolio-v2.vercel.app/" />
+    <link rel="canonical" href="https://melwin-duquenne-portfolio.vercel.app/" />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Melwin Duquenne — Portfolio" />
     <meta property="og:locale" content="fr_FR" />
-    <meta property="og:url" content="https://porfolio-v2.vercel.app/" />
+    <meta property="og:url" content="https://melwin-duquenne-portfolio.vercel.app/" />
     <meta property="og:title" content="Melwin Duquenne — Développeur Full Stack" />
     <meta
       property="og:description"
       content="Développeur full stack — applications web modernes et fiables. Vue, Symfony, TypeScript, Docker. Master Ingénierie du Web (ESGI)."
     />
-    <meta property="og:image" content="https://porfolio-v2.vercel.app/og-image.png" />
+    <meta property="og:image" content="https://melwin-duquenne-portfolio.vercel.app/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="Melwin Duquenne — Développeur Full Stack" />
@@ -55,7 +60,7 @@
       name="twitter:description"
       content="Développeur full stack — applications web modernes et fiables. Vue, Symfony, TypeScript, Docker."
     />
-    <meta name="twitter:image" content="https://porfolio-v2.vercel.app/og-image.png" />
+    <meta name="twitter:image" content="https://melwin-duquenne-portfolio.vercel.app/og-image.png" />
 
     <!-- Structured data : Person -->
     <script type="application/ld+json">
@@ -66,8 +71,11 @@
         "givenName": "Melwin",
         "familyName": "Duquenne",
         "jobTitle": "Développeur Full Stack",
-        "url": "https://porfolio-v2.vercel.app/",
-        "image": "https://porfolio-v2.vercel.app/og-image.png",
+        "url": "https://melwin-duquenne-portfolio.vercel.app/",
+        "image": [
+          "https://melwin-duquenne-portfolio.vercel.app/images/melwin-duquenne-carre.jpg",
+          "https://melwin-duquenne-portfolio.vercel.app/images/melwin-duquenne.jpg"
+        ],
         "email": "mailto:melwinduquenne@gmail.com",
         "address": {
           "@type": "PostalAddress",
@@ -100,6 +108,18 @@
       }
     </script>
 
+    <!-- Structured data : WebSite (nom du site affiché dans les résultats Google) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Melwin Duquenne — Portfolio",
+        "alternateName": "Melwin Duquenne",
+        "url": "https://melwin-duquenne-portfolio.vercel.app/",
+        "inLanguage": "fr-FR"
+      }
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -109,6 +129,35 @@
   </head>
   <body>
     <div id="app"></div>
+    <!-- Contenu lisible sans JavaScript (robots qui n'exécutent pas le JS) -->
+    <noscript>
+      <main>
+        <h1>Melwin Duquenne — Développeur Full Stack</h1>
+        <p>
+          Développeur full stack basé à Nougaroulet (32), en Master Ingénierie du Web à l'ESGI.
+          Je conçois et développe des applications web complètes, de l'architecture backend à
+          l'expérience utilisateur : Vue, Symfony, TypeScript, React, Node.js, Docker.
+        </p>
+        <h2>Projets</h2>
+        <ul>
+          <li>Candice Vionnet Sophrologie</li>
+          <li>Synkro</li>
+          <li>Michelin Aurora</li>
+          <li>GaiaFloris</li>
+          <li>Design System</li>
+          <li>Pendu Clean</li>
+          <li>La Taverne du Héros</li>
+          <li>Roomis</li>
+        </ul>
+        <h2>Contact</h2>
+        <p>
+          <a href="mailto:melwinduquenne@gmail.com">melwinduquenne@gmail.com</a> ·
+          <a href="https://github.com/melwin-duquenne">GitHub</a> ·
+          <a href="https://www.linkedin.com/in/melwin-duquenne-89b55024b/">LinkedIn</a> ·
+          <a href="/CV_Melwin_Duquenne_2026.pdf">CV (PDF)</a>
+        </p>
+      </main>
+    </noscript>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
