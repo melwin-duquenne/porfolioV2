@@ -806,6 +806,9 @@ export function buildFallingLeaves(colors) {
   // état par feuille : en l'air ou endormie (en attente de repartir d'en haut)
   const leaves = Array.from({ length: COUNT }, () => ({
     flying: false, x: 0, y: 0, z: 0, phase: 0, spin: 0,
+    // vitesse propre : lancées ensemble (saison choisie en direct), elles
+    // s'étalent en hauteur au lieu de traverser l'image en une seule bande
+    speed: 0.7 + Math.random() * 0.6,
   }))
   const launch = (l, y = box.y1) => {
     l.x = (Math.random() * 2 - 1) * box.x - 3 // le vent les pousse vers +x
@@ -834,7 +837,7 @@ export function buildFallingLeaves(colors) {
       let size = 0
       if (l.flying) {
         // balancement de côté et vent léger, en tournoyant
-        l.y -= FALL * dt * (0.6 + 0.4 * Math.sin(t * 2.6 + l.phase))
+        l.y -= FALL * l.speed * dt * (0.6 + 0.4 * Math.sin(t * 2.6 + l.phase))
         l.x += (0.5 + 0.4 * Math.sin(t * 1.5 + l.phase)) * dt
         l.z += 0.2 * Math.cos(t * 1.1 + l.phase) * dt
         size = Math.min(1, (l.y - box.y0) / FADE)
