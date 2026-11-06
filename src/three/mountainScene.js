@@ -23,6 +23,7 @@ import {
   BoxGeometry,
   IcosahedronGeometry,
   OctahedronGeometry,
+  SphereGeometry,
   CylinderGeometry,
   Group,
   Euler,
@@ -41,6 +42,7 @@ import {
   buildCloudBank,
   buildClouds,
   buildFireflies,
+  buildFallingLeaves,
   buildFishJump,
   buildLightning,
   buildParagliders,
@@ -470,14 +472,7 @@ function buildForest() {
   target('ete')
   setColors(1)
 
-  // les `count` houppiers les plus proches de la caméra (feuilles qui tombent)
-  const crownsNear = (count, cam = { x: 0, z: 78 }) =>
-    [...leafy]
-      .sort((a, b) => Math.hypot(a.x - cam.x, a.z - cam.z) - Math.hypot(b.x - cam.x, b.z - cam.z))
-      .slice(0, count)
-      .map(({ x, y, z, r }) => ({ x, y, z, r }))
-
-  return { group, target, setColors, crownsNear, counts: { leafy: n, firs: firCount } }
+  return { group, target, setColors }
 }
 
 // Fleurs du printemps : petites touffes colorées (≈ 0,1 de large, un genou de
@@ -958,7 +953,7 @@ function buildBlossomTree() {
   const WHITE = new Color('#ffffff')
   const setColor = (c) => {
     leaves.color.copy(c)
-    light.color.copy(c).lerp(WHITE, 0.35)
+    light.color.copy(c).lerp(WHITE, 0.18)
   }
   return { group, setColor }
 }
@@ -1077,8 +1072,10 @@ function buildChalet() {
 
   group.position.set(CHALET.x, ground, CHALET.z)
   group.rotation.y = Math.atan2(LAKE.x - CHALET.x, LAKE.z - CHALET.z) // face au lac
+  const pumpkins = buildPumpkins(group.rotation.y, ground)
+  group.add(pumpkins.group)
   mergeStatic(fisher, [rod, line, float, fish.object, umbrella])
-  mergeStatic(group, [fisher])
+  mergeStatic(group, [fisher, pumpkins.group])
 
   // k = 0 (jour) → 1 (nuit) ; léger vacillement, comme un feu dans la cheminée
   const update = (k, t, dt = 0) => {
@@ -1107,6 +1104,7 @@ function buildChalet() {
     smoke.update(k, t)
     glow.material.opacity = k * flicker
     halos.visible = k > 0
+    pumpkins.update(k, t)
   }
   // `now` : sans transition (scène arrêtée)
   const setCrowd = ({ fisher: stays, umbrellas }, now = false) => {
@@ -1117,7 +1115,70 @@ function buildChalet() {
       open = umbrellas ? 1 : 0
     }
   }
-  return { group, update, fisher, setCrowd }
+  return { group, update, fisher, setCrowd, setPumpkins: pumpkins.setAmount }
+}
+
+// Citrouilles d'Halloween autour du chalet, du côté vu par la caméra (arrière
+// gauche dans le repère du chalet, façade vers +z). À hauteur de genou (≈ 0,12),
+// visage tourné vers la caméra ; la nuit, il s'allume comme une lanterne. Elles
+// poussent / s'en vont en vague (`stagger`) selon `amount` (0..1).
+const PUMPKIN_SPOTS = [
+  [-1.3, -0.25],
+  [-1.25, -0.8],
+  [-0.8, -1.2],
+  [-1.35, 0.35],
+  [-0.2, -1.25],
+]
+function buildPumpkins(yaw, chaletGround) {
+  const group = new Group()
+  const BODY = flatMat('#e0782a')
+  const STEM = flatMat('#5a4a22')
+  const FACE = flatMat('#3a1c08', '#ffb347') // creusé : sombre le jour, allumé la nuit
+  const body = new SphereGeometry(1, 8, 6).scale(0.075, 0.06, 0.075).translate(0, 0.06, 0)
+  const halo = buildOrb(
+    [
+      [0, 'rgba(255, 190, 90, 0.75)'],
+      [0.3, 'rgba(255, 140, 40, 0.25)'],
+      [1, 'rgba(255, 120, 30, 0)'],
+    ],
+    0.45,
+    { additive: true, size: 64 }
+  )
+  const cos = Math.cos(yaw)
+  const sin = Math.sin(yaw)
+  const items = PUMPKIN_SPOTS.map(([lx, lz], i) => {
+    const pumpkin = new Group()
+    const wx = CHALET.x + lx * cos + lz * sin
+    const wz = CHALET.z - lx * sin + lz * cos
+    pumpkin.position.set(lx, sampleTerrain(wx, wz).h - chaletGround - 0.01, lz)
+    // visage vers la caméra (côté +z du monde, x ≈ 0)
+    pumpkin.rotation.y = Math.atan2(0 - wx, 78 - wz) - yaw
+    addMesh(pumpkin, body, BODY)
+    addMesh(pumpkin, new BoxGeometry(0.014, 0.03, 0.014), STEM, 0, 0.13, 0)
+    for (const side of [-1, 1]) addMesh(pumpkin, new BoxGeometry(0.018, 0.016, 0.01), FACE, side * 0.024, 0.075, 0.071)
+    addMesh(pumpkin, new BoxGeometry(0.05, 0.012, 0.01), FACE, 0, 0.045, 0.073)
+    const light = halo.clone() // même matériau : une seule opacité à piloter
+    light.position.set(0, 0.07, 0.1)
+    pumpkin.add(light)
+    pumpkin.visible = false
+    group.add(pumpkin)
+    return { pumpkin, r: (i * 0.37) % 1 }
+  })
+  let amount = 0
+  let want = 0
+  const setAmount = (a) => (want = a)
+  const update = (k, t) => {
+    amount = want
+    const flicker = 1 + 0.08 * Math.sin(t * 6.1) * Math.sin(t * 2.3)
+    FACE.emissiveIntensity = 1.8 * k * flicker
+    halo.material.opacity = 0.9 * k * flicker
+    for (const { pumpkin, r } of items) {
+      const g = stagger(amount, r)
+      pumpkin.visible = g > 0
+      pumpkin.scale.setScalar(g)
+    }
+  }
+  return { group, update, setAmount }
 }
 
 // Soleil et lune : sprites peints sur un canvas, en haut à droite au-dessus des
@@ -1509,6 +1570,8 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
   scene.add(chalet.group)
   const blossom = buildBlossomTree()
   scene.add(blossom.group)
+  const fallingLeaves = buildFallingLeaves(SEASON_LOOK.automne.crowns)
+  scene.add(fallingLeaves.object)
   const camps = buildCamps()
   scene.add(camps.group)
 
@@ -1627,6 +1690,7 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
     terrainSeason.uFallen.value = ss.fallen
     blossom.setColor(ss.blossom)
     flowers.update(ss.flowers)
+    chalet.setPumpkins(ss.pumpkins)
   }
   const stepSeason = (dt) => {
     ssP = approach(ssP, 1, dt, SEASON_DURATION)
@@ -1788,6 +1852,7 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
       applyNight()
     }
     if (ssP < 1) stepSeason(dt)
+    fallingLeaves.update(dt, ss.falling, nightK)
     if (wxP < 1) {
       stepWeather(dt)
       applyNight() // recalcule lumières, brouillard et astres avec la météo
@@ -1828,7 +1893,10 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
         ssTo = seasonOf(next.season)
         forest.target(next.season) // repart des couleurs affichées
         ssP = 0
-        if (!running) stepSeason(SEASON_DURATION)
+        if (!running) {
+          stepSeason(SEASON_DURATION)
+          fallingLeaves.snap(ss.falling, nightK)
+        }
       }
       weatherState = next
       crowdNow = crowd(next.season, next.weather)

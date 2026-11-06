@@ -16,6 +16,7 @@ import {
   Matrix4,
   Mesh,
   MeshBasicMaterial,
+  PlaneGeometry,
   Points,
   PointsMaterial,
   Quaternion,
@@ -781,4 +782,86 @@ export function buildLightning() {
     return flash
   }
   return { object: bolt, update }
+}
+
+// Feuilles d'automne portées par le vent, qui tombent en se balançant et en
+// tournoyant dans un volume juste devant la caméra (comme la pluie) : à leur
+// taille réelle (une main de randonneur), plus loin elles feraient moins d'un pixel.
+// `colors` : teintes des feuilles. `amount` (0..1) règle combien repartent d'en
+// haut : à 0, celles en l'air finissent leur traversée et aucune ne repart.
+const LEAF_BOX = { x: 12, y0: 11, y1: 24, z0: 50, z1: 67 }
+export function buildFallingLeaves(colors) {
+  const COUNT = 160
+  const FALL = 0.6 // vitesse de chute (u/s)
+  const FADE = 1.2 // hauteur (u) sur laquelle elles rapetissent en bas du volume
+  const box = LEAF_BOX
+  const geo = new PlaneGeometry(0.05, 0.035) // une main de randonneur
+  // sans éclairage : vues à contre-jour (soleil en face), elles paraîtraient noires
+  const mat = new MeshBasicMaterial({ side: DoubleSide })
+  const mesh = new InstancedMesh(geo, mat, COUNT)
+  mesh.frustumCulled = false
+  const c = new Color()
+  for (let i = 0; i < COUNT; i++) mesh.setColorAt(i, c.set(colors[i % colors.length]))
+
+  // état par feuille : en l'air ou endormie (en attente de repartir d'en haut)
+  const leaves = Array.from({ length: COUNT }, () => ({
+    flying: false, x: 0, y: 0, z: 0, phase: 0, spin: 0,
+  }))
+  const launch = (l, y = box.y1) => {
+    l.x = (Math.random() * 2 - 1) * box.x - 3 // le vent les pousse vers +x
+    l.y = y
+    l.z = box.z0 + Math.random() * (box.z1 - box.z0)
+    l.phase = Math.random() * Math.PI * 2
+    l.spin = 2 + Math.random() * 3
+    l.flying = true
+  }
+
+  const m = new Matrix4()
+  const q = new Quaternion()
+  const e = new Euler()
+  const p = new Vector3()
+  const sc = new Vector3()
+  let t = 0
+  // k : 0 (jour) → 1 (nuit), les feuilles s'assombrissent
+  const update = (dt, amount, k = 0) => {
+    t += dt
+    mat.color.setScalar(1 - 0.8 * k)
+    let active = 0
+    for (let i = 0; i < COUNT; i++) {
+      const l = leaves[i]
+      // une feuille endormie repart d'en haut, au compte-gouttes
+      if (!l.flying && Math.random() < amount * dt) launch(l)
+      let size = 0
+      if (l.flying) {
+        // balancement de côté et vent léger, en tournoyant
+        l.y -= FALL * dt * (0.6 + 0.4 * Math.sin(t * 2.6 + l.phase))
+        l.x += (0.5 + 0.4 * Math.sin(t * 1.5 + l.phase)) * dt
+        l.z += 0.2 * Math.cos(t * 1.1 + l.phase) * dt
+        size = Math.min(1, (l.y - box.y0) / FADE)
+        if (size <= 0) {
+          // arrivée en bas : repart d'en haut, ou s'endort si l'automne s'en va
+          if (Math.random() < amount) launch(l)
+          else l.flying = false
+          size = 0
+        }
+      }
+      if (size > 0) active++
+      e.set(t * l.spin + l.phase, l.phase, Math.sin(t * l.spin * 0.7) * 1.2)
+      p.set(l.x, l.y, l.z)
+      m.compose(p, q.setFromEuler(e), sc.set(size, size, size))
+      mesh.setMatrixAt(i, m)
+    }
+    mesh.instanceMatrix.needsUpdate = true
+    mesh.visible = active > 0
+  }
+  // sans transition : des feuilles déjà réparties sur toute la hauteur, ou aucune
+  const snap = (amount, k = 0) => {
+    for (const l of leaves) {
+      if (Math.random() < amount) launch(l, box.y0 + Math.random() * (box.y1 - box.y0))
+      else l.flying = false
+    }
+    update(0, amount, k)
+  }
+  snap(0)
+  return { object: mesh, update, snap }
 }
