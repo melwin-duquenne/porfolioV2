@@ -22,6 +22,7 @@ import {
   Vector3,
   BoxGeometry,
   IcosahedronGeometry,
+  OctahedronGeometry,
   CylinderGeometry,
   Group,
   Euler,
@@ -477,6 +478,59 @@ function buildForest() {
       .map(({ x, y, z, r }) => ({ x, y, z, r }))
 
   return { group, target, setColors, crownsNear, counts: { leafy: n, firs: firCount } }
+}
+
+// Fleurs du printemps : petites touffes colorées (≈ 0,1 de large, un genou de
+// randonneur) en taches dans les prairies du bas. Elles poussent en vague
+// (`stagger`) quand le printemps arrive et se referment quand il s'en va.
+const FLOWER_COLORS = ['#f4f1e8', '#f2c94c', '#e86a8a', '#9b7fd1', '#e85d4a']
+function buildFlowers() {
+  const MAX = 9000
+  const rand = seeded(777)
+  const geo = new OctahedronGeometry(0.05) // 8 faces : il y en a beaucoup
+  geo.scale(1, 0.6, 1)
+  const mesh = new InstancedMesh(geo, new MeshLambertMaterial({ flatShading: true }), MAX)
+  const spots = [] // { x, y, z, r, size }
+  const c = new Color()
+  for (let tries = 0; tries < 400000 && spots.length < MAX; tries++) {
+    const x = (rand() - 0.5) * 120
+    const z = -40 + rand() * 85
+    // taches de fleurs (bruit), dans l'herbe : hors forêt, sous la roche
+    if (noise(x * 0.12 - 3.3, z * 0.12 + 8.1) < 0.5) continue
+    const h = groundBase(x, z)
+    if (h < WATER_LEVEL + 0.3 || h > 8) continue
+    if (forestDensity(x, z, h) > 0.3 || slope(x, z, h) > 0.6 || isBlocked(x, z, h, 0.5)) continue
+    const i = spots.length
+    // une couleur par tache, quelques intruses
+    const patch = Math.floor(noise(x * 0.05 + 1.7, z * 0.05 - 6.2) * 10)
+    const color = FLOWER_COLORS[(rand() < 0.75 ? patch : Math.floor(rand() * 10)) % FLOWER_COLORS.length]
+    mesh.setColorAt(i, c.set(color))
+    spots.push({ x, y: sampleTerrain(x, z).h + 0.02, z, r: rand(), size: 0.7 + rand() * 0.6 })
+  }
+  mesh.count = spots.length
+  mesh.frustumCulled = false
+  mesh.visible = false
+
+  const m = new Matrix4()
+  const q = new Quaternion()
+  const p = new Vector3()
+  const sc = new Vector3()
+  let last = -1
+  const update = (amount) => {
+    if (amount === last) return
+    last = amount
+    mesh.visible = amount > 0
+    if (!mesh.visible) return
+    for (let i = 0; i < spots.length; i++) {
+      const f = spots[i]
+      const k = stagger(amount, f.r) * f.size
+      p.set(f.x, f.y, f.z)
+      m.compose(p, q, sc.set(k, k, k))
+      mesh.setMatrixAt(i, m)
+    }
+    mesh.instanceMatrix.needsUpdate = true
+  }
+  return { mesh, update, count: spots.length }
 }
 
 // Randonneurs : petits personnages (jambes, buste, tête, sac à dos) en
@@ -1443,6 +1497,8 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
   await yieldToBrowser()
   const forest = buildForest()
   scene.add(forest.group)
+  const flowers = buildFlowers()
+  scene.add(flowers.mesh)
   await yieldToBrowser()
   const hikers = buildHikers()
   scene.add(hikers.group)
@@ -1570,6 +1626,7 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
     g.setRGB(ss.grass.r / GRASS_LINEAR.r, ss.grass.g / GRASS_LINEAR.g, ss.grass.b / GRASS_LINEAR.b)
     terrainSeason.uFallen.value = ss.fallen
     blossom.setColor(ss.blossom)
+    flowers.update(ss.flowers)
   }
   const stepSeason = (dt) => {
     ssP = approach(ssP, 1, dt, SEASON_DURATION)
