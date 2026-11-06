@@ -266,6 +266,7 @@ function buildTerrain() {
   const woods = new Float32Array(pos.count)
   const meadow = new Float32Array(pos.count)
   const leaves = new Float32Array(pos.count)
+  const cover = new Float32Array(pos.count)
 
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i)
@@ -319,30 +320,36 @@ function buildTerrain() {
       clamp01((noise(pos.getX(i) * 0.11 + 9.3, pos.getZ(i) * 0.11 - 4.1) - 0.5) / 0.15) *
       clamp01((0.3 - t) / 0.1) *
       dry
+    // l'hiver, la neige tient partout sauf sur les pentes raides
+    cover[i] = dry * clamp01((flat - 0.6) / 0.2)
   }
 
   geo.setAttribute('color', new BufferAttribute(colors, 3))
   geo.setAttribute('aMeadow', new BufferAttribute(meadow, 1))
   geo.setAttribute('aLeaves', new BufferAttribute(leaves, 1))
+  geo.setAttribute('aCover', new BufferAttribute(cover, 1))
 
   // Saisons : l'herbe des prairies est multipliée par `uGrass` (rapport entre la
-  // teinte de saison et GRASS) et le sol se couvre de feuilles mortes (`uFallen`).
+  // teinte de saison et GRASS), le sol se couvre de feuilles mortes (`uFallen`)
+  // ou de neige (`uSnow`, là où elle tient : `aCover`).
   const uniforms = {
     uGrass: { value: new Color(1, 1, 1) },
     uFallen: { value: 0 },
     uLeafGround: { value: LEAF_GROUND },
+    uSnow: { value: 0 },
+    uSnowColor: { value: SNOW },
   }
   const mat = new MeshLambertMaterial({ vertexColors: true })
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms)
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute float aMeadow;\nattribute float aLeaves;\nvarying float vMeadow;\nvarying float vLeaves;')
-      .replace('#include <color_vertex>', '#include <color_vertex>\nvMeadow = aMeadow;\nvLeaves = aLeaves;')
+      .replace('#include <common>', '#include <common>\nattribute float aMeadow;\nattribute float aLeaves;\nattribute float aCover;\nvarying float vMeadow;\nvarying float vLeaves;\nvarying float vCover;')
+      .replace('#include <color_vertex>', '#include <color_vertex>\nvMeadow = aMeadow;\nvLeaves = aLeaves;\nvCover = aCover;')
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec3 uGrass;\nuniform float uFallen;\nuniform vec3 uLeafGround;\nvarying float vMeadow;\nvarying float vLeaves;')
+      .replace('#include <common>', '#include <common>\nuniform vec3 uGrass;\nuniform float uFallen;\nuniform vec3 uLeafGround;\nuniform float uSnow;\nuniform vec3 uSnowColor;\nvarying float vMeadow;\nvarying float vLeaves;\nvarying float vCover;')
       .replace(
         '#include <color_fragment>',
-        '#include <color_fragment>\ndiffuseColor.rgb *= mix(vec3(1.0), uGrass, vMeadow);\ndiffuseColor.rgb = mix(diffuseColor.rgb, uLeafGround, vLeaves * uFallen * 0.6);'
+        '#include <color_fragment>\ndiffuseColor.rgb *= mix(vec3(1.0), uGrass, vMeadow);\ndiffuseColor.rgb = mix(diffuseColor.rgb, uLeafGround, vLeaves * uFallen * 0.6);\ndiffuseColor.rgb = mix(diffuseColor.rgb, uSnowColor, vCover * uSnow * 0.92);'
       )
   }
   const mesh = new Mesh(geo, mat)
@@ -389,8 +396,29 @@ function buildForest() {
   firGeo.translate(0, 1.7, 0)
 
   const trunks = new InstancedMesh(trunkGeo, flatMat('#5b4030'), MAX)
-  const crowns = new InstancedMesh(crownGeo, new MeshLambertMaterial({ flatShading: true }), MAX)
-  const firs = new InstancedMesh(firGeo, new MeshLambertMaterial({ flatShading: true }), MAX)
+  // hiver : houppiers resserrés vers le haut du tronc (arbres nus, `uCrownSize`)
+  // et sapins blanchis (`uSnow`)
+  const winter = { uCrownSize: { value: 1 }, uSnow: { value: 0 }, uSnowColor: { value: SNOW } }
+  const crownMat = new MeshLambertMaterial({ flatShading: true })
+  crownMat.onBeforeCompile = (shader) => {
+    shader.uniforms.uCrownSize = winter.uCrownSize
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uCrownSize;')
+      .replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\ntransformed = vec3(0.0, 1.3, 0.0) + (transformed - vec3(0.0, 1.3, 0.0)) * uCrownSize;'
+      )
+  }
+  const firMat = new MeshLambertMaterial({ flatShading: true })
+  firMat.onBeforeCompile = (shader) => {
+    shader.uniforms.uSnow = winter.uSnow
+    shader.uniforms.uSnowColor = winter.uSnowColor
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uSnow;\nuniform vec3 uSnowColor;')
+      .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, uSnowColor, uSnow * 0.5);')
+  }
+  const crowns = new InstancedMesh(crownGeo, crownMat, MAX)
+  const firs = new InstancedMesh(firGeo, firMat, MAX)
 
   const m = new Matrix4()
   const q = new Quaternion()
@@ -472,7 +500,11 @@ function buildForest() {
   target('ete')
   setColors(1)
 
-  return { group, target, setColors }
+  const setWinter = (snow, crownSize) => {
+    winter.uSnow.value = snow
+    winter.uCrownSize.value = crownSize
+  }
+  return { group, target, setColors, setWinter }
 }
 
 // Fleurs du printemps : petites touffes colorées (≈ 0,1 de large, un genou de
@@ -764,6 +796,22 @@ function buildHikers() {
 // Surface du lac : un disque plat, sans vrai reflet (trop coûteux : il faudrait
 // rendre la scène deux fois). Le scintillement vient des normales perturbées
 // dans le shader, et la brillance du soleil fait le reste.
+// Glace du lac (hiver) : disque blanc bleuté posé sur l'eau, en fondu selon `ice`.
+function buildIce() {
+  const geo = new CircleGeometry(1, 48)
+  geo.rotateX(-Math.PI / 2)
+  geo.scale(LAKE.rx * 0.97, 1, LAKE.rz * 0.97)
+  const mat = new MeshLambertMaterial({ color: '#dbe7ee', transparent: true, opacity: 0, depthWrite: false })
+  const mesh = new Mesh(geo, mat)
+  mesh.position.set(LAKE.x, WATER_LEVEL + 0.02, LAKE.z)
+  mesh.visible = false
+  const set = (ice) => {
+    mat.opacity = 0.92 * ice
+    mesh.visible = ice > 0
+  }
+  return { mesh, set }
+}
+
 function buildLake() {
   const geo = new CircleGeometry(1, 48)
   geo.rotateX(-Math.PI / 2)
@@ -974,6 +1022,13 @@ function buildChalet() {
   roof.rotateX(-Math.PI / 2)
   roof.scale(1, 0.55, 1)
   addMesh(group, roof, ROOF, 0, 1.2 + 0.7 * 0.55, 0)
+  // neige sur le toit (hiver) : même prisme un peu plus grand, en fondu
+  const roofSnowMat = new MeshLambertMaterial({ color: SNOW, flatShading: true, transparent: true, opacity: 0 })
+  const roofSnow = new CylinderGeometry(1.46, 1.46, 2.18, 3, 1)
+  roofSnow.rotateX(-Math.PI / 2)
+  roofSnow.scale(1, 0.57, 1)
+  const snowCap = addMesh(group, roofSnow, roofSnowMat, 0, 1.2 + 0.7 * 0.55 + 0.03, 0)
+  snowCap.visible = false
   addMesh(group, new BoxGeometry(0.25, 0.7, 0.25), STONE, 0.5, 1.75, -0.4) // cheminée
   addMesh(group, new BoxGeometry(0.34, 0.72, 0.04), DARK_WOOD, 0, 0.36, 0.81) // porte
   // fenêtre encadrée de bois ; `side` = posée sur un mur latéral (normale ±x).
@@ -1075,7 +1130,7 @@ function buildChalet() {
   const pumpkins = buildPumpkins(group.rotation.y, ground)
   group.add(pumpkins.group)
   mergeStatic(fisher, [rod, line, float, fish.object, umbrella])
-  mergeStatic(group, [fisher, pumpkins.group])
+  mergeStatic(group, [fisher, pumpkins.group, snowCap])
 
   // k = 0 (jour) → 1 (nuit) ; léger vacillement, comme un feu dans la cheminée
   const update = (k, t, dt = 0) => {
@@ -1101,7 +1156,7 @@ function buildChalet() {
     const flicker = 1 + 0.04 * Math.sin(t * 4.7) * Math.sin(t * 1.9) + 0.015 * Math.sin(t * 11.3)
     light.intensity = 30 * k * flicker
     WINDOW.emissiveIntensity = 1 + 1.6 * k // fenêtres bien allumées la nuit
-    smoke.update(k, t)
+    smoke.update(k, t, snow) // fumée plus épaisse l'hiver
     glow.material.opacity = k * flicker
     halos.visible = k > 0
     pumpkins.update(k, t)
@@ -1115,7 +1170,17 @@ function buildChalet() {
       open = umbrellas ? 1 : 0
     }
   }
-  return { group, update, fisher, setCrowd, setPumpkins: pumpkins.setAmount }
+  // aspect de saison : citrouilles, neige (toit, fumée), décor d'hiver
+  let snow = 0
+  let decor = 0
+  const setSeason = (look) => {
+    pumpkins.setAmount(look.pumpkins)
+    snow = look.snow
+    decor = look.decor
+    roofSnowMat.opacity = snow
+    snowCap.visible = snow > 0
+  }
+  return { group, update, fisher, setCrowd, setSeason }
 }
 
 // Citrouilles d'Halloween autour du chalet, du côté vu par la caméra (arrière
@@ -1303,6 +1368,10 @@ function buildCamps() {
   // canadienne vue de côté, depuis notre caméra basse, ressemblait à une caisse)
   const tentGeo = new ConeGeometry(0.72, 0.9, 4)
   tentGeo.translate(0, 0.45, 0)
+  // un peu de neige sur le haut des tentes (hiver), montée et pliée avec elles
+  const capGeo = new ConeGeometry(0.3, 0.37, 4)
+  capGeo.translate(0, 0.54 + 0.185, 0)
+  const CAP = new MeshLambertMaterial({ color: SNOW, flatShading: true, transparent: true, opacity: 0 })
   const stoneGeo = new IcosahedronGeometry(0.07, 0)
   const logGeo = new BoxGeometry(0.05, 0.05, 0.42)
   const flameGeo = new ConeGeometry(1, 1, 6)
@@ -1362,6 +1431,7 @@ function buildCamps() {
       const x = Math.cos(a) * 1.7
       const z = Math.sin(a) * 1.7
       const tent = addMesh(campProps, tentGeo, TENTS[(i + CAMPS.indexOf(c)) % TENTS.length], x, -0.03, z)
+      addMesh(tent, capGeo, CAP).visible = false
       tent.rotation.y = Math.atan2(x, z)
       doors.push({ x: Math.cos(a) * 1.25, z: Math.sin(a) * 1.25 })
       tents.push({ mesh: tent, yaw: tent.rotation.y, delay: i * CAMP.pitch.step + rand() * 0.2 })
@@ -1498,7 +1568,11 @@ function buildCamps() {
     if (now) shelter = shelterTarget
   }
 
-  return { group, update, snap, setShelter }
+  const setSnow = (a) => {
+    CAP.opacity = a
+    for (const { mesh } of tents) mesh.children[0].visible = a > 0
+  }
+  return { group, update, snap, setShelter, setSnow }
 }
 
 // Laisse le navigateur respirer entre deux gros calculs : la construction de la
@@ -1566,6 +1640,8 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
   await yieldToBrowser()
   const lake = buildLake()
   scene.add(lake.mesh)
+  const ice = buildIce()
+  scene.add(ice.mesh)
   const chalet = buildChalet()
   scene.add(chalet.group)
   const blossom = buildBlossomTree()
@@ -1665,7 +1741,7 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
   // ---------- saisons ----------
   // Même principe que la météo : instantané `ssFrom` → aspect visé `ssTo`
   // (SEASON_LOOK), progression `ssP` ; les houppiers suivent avec le même `e`.
-  const SEASON_KEYS = ['flowers', 'fallen', 'falling', 'pumpkins']
+  const SEASON_KEYS = ['flowers', 'fallen', 'falling', 'pumpkins', 'snow', 'ice', 'crownSize', 'decor']
   const seasonOf = (season) => {
     const L = SEASON_LOOK[season]
     const out = { grass: new Color(L.grass), blossom: new Color(L.blossom) }
@@ -1690,7 +1766,11 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
     terrainSeason.uFallen.value = ss.fallen
     blossom.setColor(ss.blossom)
     flowers.update(ss.flowers)
-    chalet.setPumpkins(ss.pumpkins)
+    chalet.setSeason(ss)
+    terrainSeason.uSnow.value = ss.snow
+    forest.setWinter(ss.snow, ss.crownSize)
+    camps.setSnow(ss.snow)
+    ice.set(ss.ice)
   }
   const stepSeason = (dt) => {
     ssP = approach(ssP, 1, dt, SEASON_DURATION)

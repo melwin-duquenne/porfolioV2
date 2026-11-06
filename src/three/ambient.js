@@ -64,14 +64,18 @@ export function buildSmoke({ nightColor = '#4a5160' } = {}) {
     return { sprite, offset: i / 7 }
   })
 
-  const update = (k, t) => {
+  // `thick` (0..1) : fumée plus épaisse (poêle bien chargé l'hiver)
+  const update = (k, t, thick = 0) => {
     color.copy(DAY).lerp(NIGHT, k)
     for (const { sprite, offset } of puffs) {
       const age = (t / LIFE + offset) % 1
       const sway = Math.sin(t * 0.7 + offset * 6)
       sprite.position.set(age * 1.1 + sway * 0.1, age * 2.6, sway * 0.05)
-      sprite.scale.setScalar(0.35 + age * 1.2)
-      sprite.material.opacity = Math.min(age / 0.12, 1) * (1 - age) * (0.85 - 0.3 * k)
+      sprite.scale.setScalar((0.35 + age * 1.2) * (1 + 0.6 * thick))
+      sprite.material.opacity = Math.min(
+        1,
+        Math.min(age / 0.12, 1) * (1 - age) * (0.85 - 0.3 * k) * (1 + 0.3 * thick)
+      )
       sprite.material.color.copy(color)
     }
   }
