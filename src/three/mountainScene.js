@@ -42,7 +42,6 @@ import {
   buildCloudBank,
   buildClouds,
   buildFireflies,
-  buildFallingLeaves,
   buildFishJump,
   buildLightning,
   buildParagliders,
@@ -142,12 +141,16 @@ function plantByChalet(obj, [lx, lz], yaw, chaletGround) {
   obj.rotation.y = faceCamera(wx, wz) - yaw
   obj.visible = false
 }
-// Décor de saison qui pousse / s'en va en vague selon `amount` (cf. stagger)
-function growIn(obj, amount, r) {
+// Décor de saison qui pousse / s'en va en vague selon `amount` (cf. stagger),
+// jusqu'à la taille `size`
+function growIn(obj, amount, r, size = 1) {
   const g = stagger(amount, r)
   obj.visible = g > 0
-  obj.scale.setScalar(g)
+  obj.scale.setScalar(g * size)
 }
+// Petit décor près du chalet grossi comme le pêcheur, sinon invisible à cette
+// distance (citrouilles, sapin de Noël, bonhomme de neige)
+const DECOR_SCALE = 1.8
 
 // Arbre en fleurs (permanent, il ne fait que changer de couleur), à côté du chalet
 const BLOSSOM = { x: 5.4, z: 11 }
@@ -1417,10 +1420,10 @@ function buildChalet(fisherReady) {
 }
 
 // Décor d'hiver du côté vu par la caméra (repère du chalet) : sapin de Noël
-// (≈ 0,7) avec ses cadeaux et sa guirlande allumée la nuit, et un bonhomme de
-// neige (≈ 0,4). Chacun pousse / s'en va selon `amount` (`stagger`).
-const XMAS_SPOT = [-1.6, -1.25]
-const SNOWMAN_SPOT = [-1.75, 0.15]
+// (≈ 0,7, × DECOR_SCALE) avec ses cadeaux et sa guirlande allumée la nuit, et un bonhomme de
+// neige (≈ 0,4, × DECOR_SCALE). Chacun pousse / s'en va selon `amount` (`stagger`).
+const XMAS_SPOT = [-2.1, -1.6]
+const SNOWMAN_SPOT = [-2.2, 0.25]
 function buildWinterDecor(yaw, chaletGround) {
   const group = new Group()
   const plant = (obj, spot) => {
@@ -1508,7 +1511,7 @@ function buildWinterDecor(yaw, chaletGround) {
     { obj: snowman, r: 0.6 },
   ]
   const update = (k, t, amount) => {
-    for (const { obj, r } of items) growIn(obj, amount, r)
+    for (const { obj, r } of items) growIn(obj, amount, r, DECOR_SCALE)
     if (!tree.visible) return
     // guirlande : faible le jour, bien allumée la nuit, qui scintille doucement
     const twinkle = 0.85 + 0.15 * Math.sin(t * 3.1) * Math.sin(t * 1.3)
@@ -1560,15 +1563,16 @@ function buildIgloo() {
 }
 
 // Citrouilles d'Halloween autour du chalet, du côté vu par la caméra (arrière
-// gauche dans le repère du chalet, façade vers +z). À hauteur de genou (≈ 0,12),
+// gauche dans le repère du chalet, façade vers +z). À hauteur de genou (≈ 0,12, × DECOR_SCALE),
 // visage tourné vers la caméra ; la nuit, il s'allume comme une lanterne. Elles
 // poussent / s'en vont en vague (`stagger`) selon `amount` (0..1).
+// (groupées sur le replat dégagé où se tient le sapin de Noël l'hiver)
 const PUMPKIN_SPOTS = [
-  [-1.3, -0.25],
-  [-1.25, -0.8],
-  [-0.8, -1.2],
-  [-1.35, 0.35],
-  [-0.2, -1.25],
+  [-2.0, -1.35],
+  [-2.35, -1.75],
+  [-1.7, -1.85],
+  [-2.45, -1.15],
+  [-2.0, -2.15],
 ]
 function buildPumpkins(yaw, chaletGround) {
   const group = new Group()
@@ -1582,7 +1586,7 @@ function buildPumpkins(yaw, chaletGround) {
       [0.3, 'rgba(255, 140, 40, 0.25)'],
       [1, 'rgba(255, 120, 30, 0)'],
     ],
-    0.45,
+    0.8, // halo bien visible : elles éclairent comme des lanternes
     { additive: true, size: 64 }
   )
   const lights = []
@@ -1602,7 +1606,7 @@ function buildPumpkins(yaw, chaletGround) {
     return { pumpkin, r: (i * 0.37) % 1 }
   })
   const update = (k, t, amount) => {
-    for (const { pumpkin, r } of items) growIn(pumpkin, amount, r)
+    for (const { pumpkin, r } of items) growIn(pumpkin, amount, r, DECOR_SCALE)
     if (!amount) return
     const flicker = 1 + 0.08 * Math.sin(t * 6.1) * Math.sin(t * 2.3)
     FACE.emissiveIntensity = 1.8 * k * flicker
@@ -2018,8 +2022,6 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
   scene.add(chalet.group)
   const blossom = buildBlossomTree()
   scene.add(blossom.group)
-  const fallingLeaves = buildFallingLeaves(SEASON_LOOK.automne.crowns)
-  scene.add(fallingLeaves.object)
   const camps = buildCamps()
   scene.add(camps.group)
 
@@ -2116,7 +2118,7 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
   // ---------- saisons ----------
   // Même principe que la météo : instantané `ssFrom` → aspect visé `ssTo`
   // (SEASON_LOOK), progression `ssP` ; les houppiers suivent avec le même `e`.
-  const SEASON_KEYS = ['flowers', 'fallen', 'falling', 'pumpkins', 'snow', 'ice', 'crownSize', 'decor']
+  const SEASON_KEYS = ['flowers', 'fallen', 'pumpkins', 'snow', 'ice', 'crownSize', 'decor']
   const seasonOf = (season) => {
     const L = SEASON_LOOK[season]
     const out = { grass: new Color(L.grass), blossom: new Color(L.blossom) }
@@ -2305,7 +2307,6 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
       applyNight()
     }
     if (ssP < 1) stepSeason(dt)
-    fallingLeaves.update(dt, ss.falling, nightK)
     igloo.update(nightK, ss.decor)
     if (wxP < 1) {
       stepWeather(dt)
@@ -2345,10 +2346,7 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
         ssTo = seasonOf(next.season)
         forest.target(next.season) // repart des couleurs affichées
         ssP = 0
-        if (!running) {
-          stepSeason(SEASON_DURATION)
-          fallingLeaves.snap(ss.falling, nightK)
-        }
+        if (!running) stepSeason(SEASON_DURATION)
       }
       weatherState = next
       crowdNow = crowd(next.season, next.weather)

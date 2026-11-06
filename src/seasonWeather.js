@@ -133,7 +133,7 @@ export function approach(current, target, dt, duration) {
 // Aspect de chaque saison : `grass` teinte de l'herbe des prairies, `crowns`
 // palette des feuillus (chaque arbre y pioche selon son tirage), `blossom`
 // feuillage de l'arbre près du chalet ; quantités 0..1 : `flowers` fleurs des
-// prairies, `fallen` feuilles mortes au sol, `falling` feuilles qui tombent,
+// prairies, `fallen` feuilles mortes au sol,
 // `pumpkins` citrouilles autour du chalet, `snow` neige (sol, toits, tentes,
 // sapins, bonnets), `ice` lac gelé, `decor` décor d'hiver ; `crownSize` taille
 // des houppiers (arbres nus l'hiver). La scène y glisse progressivement.
@@ -143,7 +143,6 @@ const SUMMER = {
   blossom: '#4f8a48',
   flowers: 0,
   fallen: 0,
-  falling: 0,
   pumpkins: 0,
   snow: 0,
   ice: 0,
@@ -165,7 +164,6 @@ export const SEASON_LOOK = {
     crowns: ['#e3b23c', '#d98a2b', '#c9622a', '#a8431f', '#d9a13a'], // jaune → roux
     blossom: '#b8501f',
     fallen: 1,
-    falling: 1,
     pumpkins: 1,
   },
   hiver: {

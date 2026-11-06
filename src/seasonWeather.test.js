@@ -97,7 +97,7 @@ describe('aspect des saisons', () => {
   it('chaque saison est complète', () => {
     for (const s of SEASONS) {
       expect(Object.keys(SEASON_LOOK[s]).sort()).toEqual([
-        'blossom', 'crownSize', 'crowns', 'decor', 'fallen', 'falling', 'flowers', 'grass', 'ice', 'pumpkins', 'snow',
+        'blossom', 'crownSize', 'crowns', 'decor', 'fallen', 'flowers', 'grass', 'ice', 'pumpkins', 'snow',
       ])
     }
   })
