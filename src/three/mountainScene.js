@@ -138,6 +138,8 @@ const CHALET = { x: 7.8, z: 8.9 }
 // Arbre en fleurs (permanent, il ne fait que changer de couleur), à côté du chalet
 const BLOSSOM = { x: 5.4, z: 11 }
 const LEAF_GROUND = new Color('#c0702e') // tapis de feuilles mortes
+// Igloo (hiver) sur le replat à droite du camp du lac, entrée vers la caméra
+const IGLOO = { x: 21, z: 16 }
 
 // Camps de randonneurs (tentes autour d'un feu), sur des replats visibles depuis
 // la caméra. `scale` grossit le camp perché, plus loin, pour qu'il reste lisible.
@@ -155,6 +157,7 @@ const CAMP_RADIUS = 2.5 // rayon de la clairière aplanie (× scale)
 const OBSTACLES = [
   { x: CHALET.x, z: CHALET.z, r: 2 },
   { x: BLOSSOM.x, z: BLOSSOM.z, r: 1.5 },
+  { x: IGLOO.x, z: IGLOO.z, r: 1.2 },
   ...CAMPS.map((c) => ({ x: c.x, z: c.z, r: 3 * c.scale })),
 ]
 
@@ -1326,8 +1329,10 @@ function buildChalet() {
   group.rotation.y = Math.atan2(LAKE.x - CHALET.x, LAKE.z - CHALET.z) // face au lac
   const pumpkins = buildPumpkins(group.rotation.y, ground)
   group.add(pumpkins.group)
+  const winterDecor = buildWinterDecor(group.rotation.y, ground)
+  group.add(winterDecor.group)
   mergeStatic(fisher, [rod, line, float, fish.object, umbrella])
-  mergeStatic(group, [fisher, pumpkins.group, snowCap])
+  mergeStatic(group, [fisher, pumpkins.group, winterDecor.group, snowCap])
 
   // k = 0 (jour) → 1 (nuit) ; léger vacillement, comme un feu dans la cheminée
   const update = (k, t, dt = 0) => {
@@ -1357,6 +1362,7 @@ function buildChalet() {
     glow.material.opacity = k * flicker
     halos.visible = k > 0
     pumpkins.update(k, t)
+    winterDecor.update(k, t, decor)
   }
   // `now` : sans transition (scène arrêtée)
   const setCrowd = ({ fisher: stays, umbrellas }, now = false) => {
@@ -1378,6 +1384,161 @@ function buildChalet() {
     snowCap.visible = snow > 0
   }
   return { group, update, fisher, setCrowd, setSeason }
+}
+
+// Décor d'hiver du côté vu par la caméra (repère du chalet) : sapin de Noël
+// (≈ 0,7) avec ses cadeaux et sa guirlande allumée la nuit, et un bonhomme de
+// neige (≈ 0,4). Chacun pousse / s'en va selon `amount` (`stagger`).
+const XMAS_SPOT = [-1.6, -1.25]
+const SNOWMAN_SPOT = [-1.75, 0.15]
+function buildWinterDecor(yaw, chaletGround) {
+  const group = new Group()
+  const cos = Math.cos(yaw)
+  const sin = Math.sin(yaw)
+  // posé sur le sol, tourné vers la caméra
+  const plant = (obj, [lx, lz]) => {
+    const wx = CHALET.x + lx * cos + lz * sin
+    const wz = CHALET.z - lx * sin + lz * cos
+    obj.position.set(lx, sampleTerrain(wx, wz).h - chaletGround - 0.01, lz)
+    obj.rotation.y = Math.atan2(0 - wx, 78 - wz) - yaw
+    obj.visible = false
+    group.add(obj)
+  }
+
+  // --- sapin de Noël ---
+  const tree = new Group()
+  const NEEDLES = flatMat('#2c5a3a')
+  const SNOWY = flatMat('#f1f4f2')
+  const STAR = flatMat('#e8c45a', '#ffcf4a')
+  addMesh(tree, new CylinderGeometry(0.03, 0.035, 0.14, 6).translate(0, 0.07, 0), flatMat('#5b4030'))
+  for (const [r, h, y] of [
+    [0.26, 0.32, 0.28],
+    [0.2, 0.28, 0.45],
+    [0.13, 0.24, 0.6],
+  ]) {
+    addMesh(tree, new ConeGeometry(r, h, 7), NEEDLES, 0, y, 0)
+    addMesh(tree, new ConeGeometry(r * 0.45, h * 0.45, 7), SNOWY, 0, y + h * 0.28, 0) // pointe enneigée
+  }
+  addMesh(tree, new OctahedronGeometry(0.035), STAR, 0, 0.74, 0)
+  // cadeaux au pied du sapin, avec ruban
+  const RIBBON = flatMat('#f4e7c4')
+  for (const [w, h, d, x, z, color] of [
+    [0.08, 0.06, 0.07, 0.2, 0.12, '#c8392f'],
+    [0.06, 0.05, 0.06, -0.18, 0.15, '#2b4f9e'],
+    [0.09, 0.07, 0.07, 0.04, 0.24, '#d9a93a'],
+    [0.05, 0.05, 0.05, -0.05, 0.3, '#2f8f6a'],
+  ]) {
+    addMesh(tree, new BoxGeometry(w, h, d), flatMat(color), x, h / 2, z)
+    addMesh(tree, new BoxGeometry(w + 0.004, h + 0.004, 0.012), RIBBON, x, h / 2, z)
+    addMesh(tree, new BoxGeometry(0.012, h + 0.004, d + 0.004), RIBBON, x, h / 2, z)
+  }
+  // guirlande : ampoules en spirale, non éclairées (elles brillent d'elles-mêmes)
+  const BULBS = 24
+  const bulbMat = new MeshBasicMaterial()
+  const bulbs = new InstancedMesh(new IcosahedronGeometry(0.018, 0), bulbMat, BULBS)
+  const BULB_COLORS = ['#ff5a4a', '#ffd34a', '#5ab4ff', '#7dff8a', '#ff8ad8']
+  const m = new Matrix4()
+  const c = new Color()
+  for (let j = 0; j < BULBS; j++) {
+    const u = j / BULBS
+    const y = 0.16 + u * 0.5
+    const r = 0.27 * (1 - (y - 0.12) / 0.62) + 0.015
+    const a = u * Math.PI * 6
+    bulbs.setMatrixAt(j, m.makeTranslation(Math.cos(a) * r, y, Math.sin(a) * r))
+    bulbs.setColorAt(j, c.set(BULB_COLORS[j % BULB_COLORS.length]))
+  }
+  tree.add(bulbs)
+  const halo = buildOrb(
+    [
+      [0, 'rgba(255, 210, 140, 0.5)'],
+      [0.35, 'rgba(255, 170, 90, 0.18)'],
+      [1, 'rgba(255, 150, 60, 0)'],
+    ],
+    1.1,
+    { additive: true, size: 64 }
+  )
+  halo.position.set(0, 0.4, 0.05)
+  tree.add(halo)
+  mergeStatic(tree, [bulbs])
+  plant(tree, XMAS_SPOT)
+
+  // --- bonhomme de neige ---
+  const snowman = new Group()
+  const SNOWBALL = flatMat('#f3f6f4')
+  const COAL = flatMat('#1d1d1f')
+  for (const [r, y] of [
+    [0.1, 0.09],
+    [0.075, 0.245],
+    [0.055, 0.36],
+  ]) {
+    addMesh(snowman, new SphereGeometry(r, 8, 6), SNOWBALL, 0, y, 0)
+  }
+  addMesh(snowman, new CylinderGeometry(0.06, 0.066, 0.025, 8), flatMat('#c8392f'), 0, 0.31, 0) // écharpe
+  addMesh(snowman, new ConeGeometry(0.012, 0.05, 5).rotateX(Math.PI / 2), flatMat('#e0782a'), 0, 0.36, 0.075) // carotte
+  for (const side of [-1, 1]) addMesh(snowman, new BoxGeometry(0.012, 0.012, 0.01), COAL, side * 0.022, 0.38, 0.05)
+  for (const y of [0.22, 0.26]) addMesh(snowman, new BoxGeometry(0.012, 0.012, 0.01), COAL, 0, y, 0.073)
+  mergeStatic(snowman)
+  plant(snowman, SNOWMAN_SPOT)
+
+  const items = [
+    { obj: tree, r: 0.15 },
+    { obj: snowman, r: 0.6 },
+  ]
+  const update = (k, t, amount) => {
+    for (const { obj, r } of items) {
+      const g = stagger(amount, r)
+      obj.visible = g > 0
+      obj.scale.setScalar(g)
+    }
+    if (!tree.visible) return
+    // guirlande : faible le jour, bien allumée la nuit, qui scintille doucement
+    const twinkle = 0.85 + 0.15 * Math.sin(t * 3.1) * Math.sin(t * 1.3)
+    bulbMat.color.setScalar(0.35 + 0.65 * k * twinkle)
+    STAR.emissiveIntensity = 0.4 + 1.4 * k
+    halo.material.opacity = 0.9 * k * twinkle
+    halo.visible = k > 0
+  }
+  return { group, update }
+}
+
+// Igloo (hiver) : dôme de blocs de neige (≈ 0,5 de large) et son tunnel
+// d'entrée, tourné vers la caméra ; la nuit, l'entrée s'éclaire. Pousse selon `amount`.
+function buildIgloo() {
+  const group = new Group()
+  const inner = new Group()
+  const ICE_BLOCKS = flatMat('#eef4f8')
+  addMesh(inner, new SphereGeometry(0.25, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2), ICE_BLOCKS)
+  // tunnel : demi-cylindre couché vers +z
+  const tunnel = new CylinderGeometry(0.1, 0.1, 0.18, 8, 1, false, -Math.PI / 2, Math.PI)
+  tunnel.rotateX(Math.PI / 2)
+  addMesh(inner, tunnel, ICE_BLOCKS, 0, 0, 0.27)
+  const DOOR = flatMat('#2a2a30', '#ffb35c')
+  addMesh(inner, new CircleGeometry(0.075, 8, 0, Math.PI), DOOR, 0, 0, 0.361)
+  const halo = buildOrb(
+    [
+      [0, 'rgba(255, 190, 110, 0.6)'],
+      [0.35, 'rgba(255, 160, 70, 0.2)'],
+      [1, 'rgba(255, 140, 50, 0)'],
+    ],
+    0.6,
+    { additive: true, size: 64 }
+  )
+  halo.position.set(0, 0.05, 0.42)
+  inner.add(halo)
+  mergeStatic(inner)
+  group.add(inner)
+  group.position.set(IGLOO.x, sampleTerrain(IGLOO.x, IGLOO.z).h - 0.02, IGLOO.z)
+  group.rotation.y = Math.atan2(0 - IGLOO.x, 78 - IGLOO.z)
+  group.visible = false
+  const update = (k, amount) => {
+    const g = stagger(amount, 0.3)
+    group.visible = g > 0
+    group.scale.setScalar(g)
+    DOOR.emissiveIntensity = 1.5 * k
+    halo.material.opacity = 0.9 * k
+    halo.visible = k > 0
+  }
+  return { group, update }
 }
 
 // Citrouilles d'Halloween autour du chalet, du côté vu par la caméra (arrière
@@ -1843,6 +2004,8 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
   scene.add(lake.mesh)
   const ice = buildIce()
   scene.add(ice.mesh)
+  const igloo = buildIgloo()
+  scene.add(igloo.group)
   const chalet = buildChalet()
   scene.add(chalet.group)
   const blossom = buildBlossomTree()
@@ -2137,6 +2300,7 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
     }
     if (ssP < 1) stepSeason(dt)
     fallingLeaves.update(dt, ss.falling, nightK)
+    igloo.update(nightK, ss.decor)
     if (wxP < 1) {
       stepWeather(dt)
       applyNight() // recalcule lumières, brouillard et astres avec la météo
