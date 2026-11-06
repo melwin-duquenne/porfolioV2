@@ -1215,7 +1215,8 @@ export async function createMountainScene(canvas, { onSlow } = {}) {
     { object: hikers.group, when: 'day', update: (k, t, dt) => hikers.update(dt) },
     { object: chalet.fisher, when: 'day' }, // animé par chalet.update
     { object: birds.object, when: 'day', update: (k, t) => birds.update(t) },
-    { object: paragliders.object, when: 'day', update: (k, t) => paragliders.update(t) },
+    // arrivent en chute libre au jour, plongent derrière les crêtes à la nuit
+    { object: paragliders.object, update: (k, t, dt) => paragliders.update(k < NIGHT_SWITCH, t, dt) },
     { object: fireflies.object, when: 'night', update: fireflies.update },
     { object: stars, update: shootingStar.update }, // fondu des étoiles : applyNight
     { object: lake.mesh, update: (k, t) => lake.update(t) },
@@ -1269,7 +1270,10 @@ export async function createMountainScene(canvas, { onSlow } = {}) {
       if (when) object.visible = (when === 'night') === isNight
     }
     // scène arrêtée : pas d'animation d'installation, le camp est là ou pas
-    if (!running) camps.snap(isNight)
+    if (!running) {
+      camps.snap(isNight)
+      paragliders.snap(!isNight)
+    }
   }
   applyNight()
 

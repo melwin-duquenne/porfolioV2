@@ -24,6 +24,9 @@ import {
 } from 'three'
 import { canvasTexture, flatMat, softBlob } from './helpers.js'
 
+// dépasse un peu 1 avant de s'y poser (petit rebond)
+const easeOutBack = (t) => 1 + 2.2 * (t - 1) ** 3 + 1.2 * (t - 1) ** 2
+
 // Événement qui revient à intervalle aléatoire (étoile filante, poisson…).
 // `fired(t)` est vrai à l'instant du déclenchement ; `since(t)` donne les secondes
 // écoulées depuis le dernier (Infinity avant le premier).
@@ -227,6 +230,10 @@ export function buildBirds({ center, radius, count = 5 }) {
 // ---------- parapentes (jour) ----------
 // Voiles qui spiralent dans les ascendances au-dessus des sommets, pilote suspendu
 // dessous. `thermals` : un centre { x, y, z } par voile ; `colors` : leurs couleurs.
+// Au lever du jour, chaque pilote tombe du ciel en chute libre puis ouvre sa voile
+// et rejoint son ascendance ; à la nuit, il quitte l'ascendance et part en vol
+// plané vers l'arrière des montagnes, en perdant doucement de l'altitude, jusqu'à
+// se fondre dans le ciel sombre.
 export function buildParagliders(thermals, colors) {
   const SPAN = 3 // envergure
   const ARC = 0.9 // demi-angle de l'arc : les extrémités de la voile retombent
@@ -281,38 +288,158 @@ export function buildParagliders(thermals, colors) {
   }
 
   // chacun tourne autour de son ascendance, à son rythme et dans son sens
+  // `state` : 'gone' (absent), 'arriving' (chute puis ouverture), 'flying', 'leaving'
   const gliders = thermals.map((center, i) => ({
     center,
     radius: 6 + Math.random() * 4,
     phase: Math.random() * Math.PI * 2,
     speed: 0.08 + Math.random() * 0.03,
     dir: i % 2 ? -1 : 1,
+    delay: i * 0.9 + Math.random() * 0.5, // ils n'arrivent pas tous ensemble
+    state: 'flying',
+    time: 0, // secondes depuis le début de l'état
+    drop: 0, // décalage vertical par rapport à l'ascendance
+    open: 1, // voile : 0 = pliée sur le pilote, 1 = déployée
+    // départ : position et cap intégrés image par image
+    pos: new Vector3(),
+    yaw: 0,
+    exitYaw: (3 * Math.PI) / 4 + (Math.random() - 0.5) * 0.6, // vers la droite, au fond
+    color: new Color(colors[i]),
   }))
+  const NIGHT_SKY = new Color('#121b2a') // se fond dans le ciel de nuit (--sky-2)
+  const tint = new Color()
+
+  // Arrivée : chute libre (accélère) puis voile qui s'ouvre et freine la chute
+  // jusqu'à l'ascendance. Courbe de freinage : drop = BRAKE·(1-s)³, dont la
+  // vitesse de départ égale celle de fin de chute libre (pas d'à-coup).
+  const FALL = { height: 30, time: 1.2, distance: 12 } // chute libre
+  const BRAKE = FALL.height - FALL.distance
+  const GRAVITY = (2 * FALL.distance) / FALL.time ** 2
+  const BRAKE_TIME = (3 * BRAKE) / (GRAVITY * FALL.time)
+  const OPEN_TIME = 0.8 // déploiement de la voile
+  const ARRIVE_TIME = FALL.time + BRAKE_TIME
+  const arrival = (g, tau) => {
+    if (tau < FALL.time) {
+      g.drop = FALL.height - 0.5 * GRAVITY * tau * tau
+      g.open = 0
+    } else {
+      const u = Math.min(1, (tau - FALL.time) / BRAKE_TIME)
+      g.drop = BRAKE * (1 - u) ** 3
+      g.open = easeOutBack(Math.min(1, (tau - FALL.time) / OPEN_TIME))
+    }
+  }
+  // Départ : sortie de l'ascendance en virage doux puis ligne droite, finesse ~7
+  const LEAVE = { time: 10, speed: 7, accel: 2.5, glide: 7, turnRate: 0.6 }
+
   const m = new Matrix4()
+  const wm = new Matrix4()
   const p = new Vector3()
+  const wp = new Vector3()
   const q = new Quaternion()
   const s = new Vector3(1, 1, 1)
+  const ws = new Vector3()
   const e = new Euler()
+  const HIDDEN = new Matrix4().makeScale(0, 0, 0)
+  const orbitYaw = (g, a) => Math.atan2(-Math.sin(a) * g.dir, Math.cos(a) * g.dir)
+  const orbitPos = (g, t, out) => {
+    const a = g.phase + t * g.speed * g.dir
+    return out.set(
+      g.center.x + Math.cos(a) * g.radius,
+      g.center.y + Math.sin(t * 0.05 + g.phase) * 4 + g.drop, // monte et redescend lentement
+      g.center.z + Math.sin(a) * g.radius
+    )
+  }
+  const PILOT_DROP = SPAN * 0.62 // voile pliée : sur le pilote, au bout des suspentes
 
-  const update = (t) => {
+  // fait avancer l'état de chaque pilote ; `day` : faut-il qu'ils soient là
+  const step = (g, day, t, dt) => {
+    g.time += dt
+    if (g.state === 'gone' && day) {
+      g.state = 'arriving'
+      g.time = -g.delay
+    } else if ((g.state === 'arriving' || g.state === 'flying') && !day) {
+      g.state = 'leaving'
+      g.time = 0
+      orbitPos(g, t, g.pos)
+      g.yaw = orbitYaw(g, g.phase + t * g.speed * g.dir)
+      g.vel = g.speed * g.radius // vitesse sur le cercle
+    }
+    if (g.state === 'arriving') {
+      if (g.time >= ARRIVE_TIME) {
+        g.state = 'flying'
+        g.drop = 0
+        g.open = 1
+      } else arrival(g, Math.max(0, g.time))
+    } else if (g.state === 'leaving') {
+      if (g.time >= LEAVE.time) g.state = 'gone'
+      // virage progressif vers le cap de sortie, à vitesse de rotation bornée
+      let turn = g.exitYaw - g.yaw
+      turn = Math.atan2(Math.sin(turn), Math.cos(turn)) // entre -π et π
+      g.turn = Math.max(-LEAVE.turnRate, Math.min(LEAVE.turnRate, turn * 1.5))
+      g.yaw += g.turn * dt
+      g.vel = Math.min(LEAVE.speed, g.vel + LEAVE.accel * dt)
+      g.pos.x += Math.sin(g.yaw) * g.vel * dt
+      g.pos.z += Math.cos(g.yaw) * g.vel * dt
+      g.pos.y -= (g.vel / LEAVE.glide) * dt
+      g.open = Math.min(1, g.open + dt / OPEN_TIME) // parti en pleine chute : elle s'ouvre
+    }
+  }
+
+  let anyone = true // au moins un pilote visible ou en route
+  const update = (day, t, dt = 0) => {
+    if (!day && !anyone) return
+    anyone = false
     gliders.forEach((g, i) => {
-      const a = g.phase + t * g.speed * g.dir
-      p.set(
-        g.center.x + Math.cos(a) * g.radius,
-        g.center.y + Math.sin(t * 0.05 + g.phase) * 4, // monte et redescend lentement
-        g.center.z + Math.sin(a) * g.radius
-      )
-      // cap = tangente au cercle ; voile inclinée vers l'intérieur du virage
-      e.set(0, Math.atan2(-Math.sin(a) * g.dir, Math.cos(a) * g.dir), g.dir * 0.3, 'YXZ')
+      step(g, day, t, dt)
+      const waiting = g.state === 'arriving' && g.time < 0
+      if (g.state === 'gone' || waiting) {
+        wings.setMatrixAt(i, HIDDEN)
+        pilots.setMatrixAt(i, HIDDEN)
+        if (waiting) anyone = true
+        return
+      }
+      anyone = true
+      const leaving = g.state === 'leaving'
+      // en vol : cap = tangente au cercle, voile inclinée vers l'intérieur du virage ;
+      // au départ : inclinaison selon le virage en cours, à plat en ligne droite
+      let yaw, bank
+      if (leaving) {
+        p.copy(g.pos)
+        yaw = g.yaw
+        bank = -g.turn * 0.5
+      } else {
+        orbitPos(g, t, p)
+        yaw = orbitYaw(g, g.phase + t * g.speed * g.dir)
+        bank = g.dir * 0.3
+      }
+      // en s'éloignant de nuit, la voile s'assombrit jusqu'à la couleur du ciel
+      const fade = leaving ? Math.min(1, Math.max(0, (g.time / LEAVE.time - 0.2) / 0.75)) : 0
+      wings.setColorAt(i, tint.copy(g.color).lerp(NIGHT_SKY, fade))
+      e.set(0, yaw, bank, 'YXZ')
       q.setFromEuler(e)
       m.compose(p, q, s)
-      wings.setMatrixAt(i, m)
       pilots.setMatrixAt(i, m)
+      // voile : sort du sac du pilote et monte au bout des suspentes en s'ouvrant
+      const open = Math.max(g.open, 0.04)
+      wp.set(0, -PILOT_DROP * (1 - Math.min(1, open)), 0).applyQuaternion(q).add(p)
+      ws.set(open, Math.min(1, open), Math.min(1, 0.3 + 0.7 * open))
+      wm.compose(wp, q, ws)
+      wings.setMatrixAt(i, wm)
     })
     wings.instanceMatrix.needsUpdate = true
     pilots.instanceMatrix.needsUpdate = true
+    wings.instanceColor.needsUpdate = true
   }
-  return { object: group, update }
+
+  // sans animation (scène arrêtée, chargement) : en vol ou absents d'emblée
+  const snap = (day) => {
+    for (const g of gliders) {
+      Object.assign(g, { state: day ? 'flying' : 'gone', time: 0, drop: 0, open: 1 })
+    }
+    anyone = true
+    update(day, 0)
+  }
+  return { object: group, update, snap }
 }
 
 // ---------- nuages ----------
