@@ -666,12 +666,17 @@ function buildHikers() {
   // parapluie : toile conique (Ø ≈ 0,42) tenue au-dessus de la tête, manche fin
   const canopy = part(new ConeGeometry(0.21, 0.1, 8), n, '#ffffff')
   const stick = part(new BoxGeometry(0.012, 0.3, 0.012), n, '#3a3a3a')
+  // bonnet à pompon (hiver), posé sur la tête ; taille selon `gear` (0..1)
+  const hat = part(hatGeometry(), n, '#ffffff')
   const UMBRELLAS = ['#2b2f6b', '#c8553d', '#e0b23c', '#2f8f6a', '#26292e', '#7a4fb0'].map((c) => new Color(c))
   for (let i = 0; i < n; i++) {
     torso.setColorAt(i, JACKETS[Math.floor(rand() * JACKETS.length)])
     pack.setColorAt(i, PACKS[Math.floor(rand() * PACKS.length)])
     canopy.setColorAt(i, UMBRELLAS[Math.floor(rand() * UMBRELLAS.length)])
+    hat.setColorAt(i, HATS[i % HATS.length])
   }
+  let gear = 0
+  const hatAt = new Matrix4()
   const HIDDEN = new Matrix4().makeScale(0, 0, 0)
   const umb = new Matrix4()
 
@@ -771,6 +776,10 @@ function buildHikers() {
       torso.setMatrixAt(i, body)
       head.setMatrixAt(i, body)
       pack.setMatrixAt(i, body)
+      if (gear > 0) {
+        hatAt.makeScale(gear, gear, gear).setPosition(0, HAT_Y, 0)
+        hat.setMatrixAt(i, m.multiplyMatrices(body, hatAt))
+      } else hat.setMatrixAt(i, HIDDEN)
       for (const side of SIDES) {
         leg.makeRotationX(Math.sin(h.phase) * 0.5 * side).setPosition(side * 0.035, 0.18, 0)
         legs.setMatrixAt(i * 2 + (side > 0 ? 1 : 0), m.multiplyMatrices(body, leg))
@@ -790,7 +799,195 @@ function buildHikers() {
     }
   }
 
-  return { group, update, setCrowd }
+  const setGear = (a) => (gear = a)
+  return { group, update, setCrowd, setGear }
+}
+
+// ---------- gens de l'hiver ----------
+const HATS = ['#c8553d', '#2b2f6b', '#e0b23c', '#2f8f6a', '#f4f1e8', '#7a4fb0'].map((c) => new Color(c))
+const HAT_Y = 0.43 // haut du crâne (tête : centre 0.4, rayon 0.05)
+// bonnet conique et son pompon, origine à la base du bonnet
+function hatGeometry() {
+  return mergeGeometries([
+    new ConeGeometry(0.055, 0.075, 6).translate(0, 0.0375, 0).toNonIndexed(),
+    new IcosahedronGeometry(0.02, 0).translate(0, 0.08, 0),
+  ])
+}
+
+// Skieurs et patineurs : mêmes pièces que les randonneurs (un InstancedMesh
+// par pièce), avec bonnet, et skis + bâtons pour les skieurs. `place(i, B,
+// pose)` pose le personnage i (B : pieds, orientation, échelle) ;
+// pose = { lean (penché en avant), crouch (0..1 jambes fléchies), push (-1..1 poussée de patineur) }.
+function buildWinterPeople(n, seed, { skis = false } = {}) {
+  const rand = seeded(seed)
+  const group = new Group()
+  const part = (geo, count, color) => {
+    const mesh = new InstancedMesh(geo, new MeshLambertMaterial({ color }), count)
+    mesh.frustumCulled = false
+    group.add(mesh)
+    return mesh
+  }
+  const legs = part(new BoxGeometry(0.045, 0.18, 0.05).translate(0, -0.09, 0), n * 2, PANTS_COLOR)
+  const torso = part(new BoxGeometry(0.13, 0.17, 0.08).translate(0, 0.265, 0), n, '#ffffff')
+  const head = part(new IcosahedronGeometry(0.05, 0).translate(0, 0.4, 0), n, SKIN_COLOR)
+  const hat = part(hatGeometry(), n, '#ffffff')
+  const skiMesh = skis ? part(new BoxGeometry(0.03, 0.012, 0.42), n * 2, '#2a2d33') : null
+  const poles = skis ? part(new BoxGeometry(0.008, 0.32, 0.008), n * 2, '#9aa0a6') : null
+  const JACKETS = [...JACKET_COLORS, '#f4f1e8', '#2f8f6a']
+  for (let i = 0; i < n; i++) {
+    torso.setColorAt(i, new Color(JACKETS[Math.floor(rand() * JACKETS.length)]))
+    hat.setColorAt(i, HATS[Math.floor(rand() * HATS.length)])
+  }
+  const HIDDEN = new Matrix4().makeScale(0, 0, 0)
+  const upper = new Matrix4()
+  const local = new Matrix4()
+  const rot = new Matrix4()
+  const m = new Matrix4()
+  const place = (i, B, { lean = 0, crouch = 0, push = 0 }) => {
+    const drop = crouch * 0.05
+    upper.multiplyMatrices(B, local.makeTranslation(0, -drop, 0)).multiply(rot.makeRotationX(lean))
+    torso.setMatrixAt(i, upper)
+    head.setMatrixAt(i, upper)
+    hat.setMatrixAt(i, m.multiplyMatrices(upper, local.makeTranslation(0, HAT_Y, 0)))
+    for (const side of [-1, 1]) {
+      const j = i * 2 + (side > 0 ? 1 : 0)
+      // jambe : pend de la hanche ; fléchie vers l'avant, ou écartée en poussant
+      local.makeTranslation(side * 0.035, 0.18 - drop, 0)
+      local.multiply(rot.makeRotationX(-crouch * 0.35))
+      local.multiply(rot.makeRotationZ(Math.max(0, push * side) * 0.4 * side))
+      legs.setMatrixAt(j, m.multiplyMatrices(B, local))
+      if (skis) {
+        skiMesh.setMatrixAt(j, m.multiplyMatrices(B, local.makeTranslation(side * 0.05, 0.006, 0.04)))
+        local.makeTranslation(side * 0.1, 0.13, -0.05).multiply(rot.makeRotationX(-0.5))
+        poles.setMatrixAt(j, m.multiplyMatrices(B, local))
+      }
+    }
+  }
+  const hide = (i) => {
+    torso.setMatrixAt(i, HIDDEN)
+    head.setMatrixAt(i, HIDDEN)
+    hat.setMatrixAt(i, HIDDEN)
+    for (const j of [i * 2, i * 2 + 1]) {
+      legs.setMatrixAt(j, HIDDEN)
+      skiMesh?.setMatrixAt(j, HIDDEN)
+      poles?.setMatrixAt(j, HIDDEN)
+    }
+  }
+  const flush = () => {
+    for (const mesh of group.children) mesh.instanceMatrix.needsUpdate = true
+  }
+  return { group, place, hide, flush, rand }
+}
+
+// Présence animée commune (comme les randonneurs) : chacun a un tirage fixe `r`
+// et reste si r < part voulue, et seulement quand le décor est prêt (`ready` :
+// assez de neige, lac assez gelé). `now` ou groupe caché : sans transition.
+function winterCrowd(people, group, key, ready) {
+  let share = 0
+  const want = (p) => (p.r < share && ready() ? 1 : 0)
+  const step = (dt) => {
+    for (const p of people) p.presence = approach(p.presence, want(p), dt, 1 + p.r)
+  }
+  const setCrowd = (crowdNow, now = false) => {
+    share = crowdNow[key]
+    if (now || !group.visible) for (const p of people) p.presence = want(p)
+  }
+  return { step, setCrowd }
+}
+
+// Skieurs : descendent en godille une pente enneigée derrière le lac, à droite,
+// puis repartent d'en haut. Grossis comme les randonneurs du fond (× 1,6).
+const SKI_SLOPE = { x: 35, zTop: -26, zBottom: -10 }
+function buildSkiers(ready) {
+  const N = 5
+  const SCALE = 1.6
+  const SPEED = 2 // u/s, le long de la pente
+  const P = buildWinterPeople(N, 9090, { skis: true })
+  const skiers = Array.from({ length: N }, (_, i) => ({
+    r: (i * 0.37 + 0.11) % 1,
+    u: i / N, // avancement sur la pente (0 en haut, 1 en bas)
+    lane: (i - (N - 1) / 2) * 1.5,
+    phase: P.rand() * 6,
+    presence: 0,
+  }))
+  const crowdState = winterCrowd(skiers, P.group, 'skiers', ready)
+  const len = SKI_SLOPE.zBottom - SKI_SLOPE.zTop
+  const xAt = (s, u) => SKI_SLOPE.x + s.lane + 2.2 * Math.sin(u * Math.PI * 6 + s.phase)
+  const B = new Matrix4()
+  const q = new Quaternion()
+  const e = new Euler()
+  const p = new Vector3()
+  const sc = new Vector3()
+  const update = (dt) => {
+    crowdState.step(dt)
+    for (let i = 0; i < N; i++) {
+      const s = skiers[i]
+      s.u = (s.u + (SPEED * dt) / len) % 1
+      // en bas il s'efface, en haut il réapparaît (rapetisse / grandit)
+      const k = s.presence * clamp01(Math.min(s.u, 1 - s.u) / 0.05)
+      if (k <= 0) {
+        P.hide(i)
+        continue
+      }
+      const x = xAt(s, s.u)
+      const z = SKI_SLOPE.zTop + s.u * len
+      const dx = (xAt(s, s.u + 0.002) - x) / (0.002 * len)
+      // penché vers l'intérieur du virage
+      e.set(0, Math.atan2(dx, 1), -0.35 * Math.cos(s.u * Math.PI * 6 + s.phase))
+      p.set(x, sampleTerrain(x, z).h - (1 - s.presence) * 0.3 * SCALE, z)
+      B.compose(p, q.setFromEuler(e), sc.setScalar(SCALE * k))
+      P.place(i, B, { lean: 0.35, crouch: 1 })
+    }
+    P.flush()
+  }
+  return { group: P.group, update, setCrowd: crowdState.setCrowd }
+}
+
+// Patineurs : chacun glisse sur sa boucle au milieu du lac gelé, penché dans le
+// virage, en poussant d'une jambe puis de l'autre. Grossis comme le pêcheur.
+function buildSkaters(ready) {
+  const N = 6
+  const SCALE = 1.6
+  const SPEED = 0.8
+  const P = buildWinterPeople(N, 5150)
+  const skaters = Array.from({ length: N }, (_, i) => ({
+    r: (i * 0.41 + 0.07) % 1,
+    cx: LAKE.x + (P.rand() - 0.5) * 5,
+    cz: LAKE.z + (P.rand() - 0.5) * 4,
+    a: 2.5 + P.rand() * 2.5,
+    b: 1.8 + P.rand() * 1.7,
+    dir: P.rand() < 0.5 ? -1 : 1,
+    angle: P.rand() * Math.PI * 2,
+    phase: P.rand() * 6,
+    presence: 0,
+  }))
+  const crowdState = winterCrowd(skaters, P.group, 'skaters', ready)
+  const B = new Matrix4()
+  const q = new Quaternion()
+  const e = new Euler()
+  const p = new Vector3()
+  const sc = new Vector3()
+  const update = (dt) => {
+    crowdState.step(dt)
+    for (let i = 0; i < N; i++) {
+      const s = skaters[i]
+      s.angle += (s.dir * SPEED * dt) / ((s.a + s.b) / 2)
+      s.phase += dt * 3
+      if (s.presence <= 0) {
+        P.hide(i)
+        continue
+      }
+      const cos = Math.cos(s.angle)
+      const sin = Math.sin(s.angle)
+      // sur la glace : il rapetisse sur place (pas question de s'enfoncer)
+      p.set(s.cx + s.a * cos, WATER_LEVEL + 0.03, s.cz + s.b * sin)
+      e.set(0, Math.atan2(-s.a * sin * s.dir, s.b * cos * s.dir), 0.18 * s.dir)
+      B.compose(p, q.setFromEuler(e), sc.setScalar(SCALE * s.presence))
+      P.place(i, B, { lean: 0.25, crouch: 0.3, push: Math.sin(s.phase) })
+    }
+    P.flush()
+  }
+  return { group: P.group, update, setCrowd: crowdState.setCrowd }
 }
 
 // Surface du lac : un disque plat, sans vrai reflet (trop coûteux : il faudrait
@@ -1637,6 +1834,10 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
   await yieldToBrowser()
   const hikers = buildHikers()
   scene.add(hikers.group)
+  // l'hiver : skieurs une fois la pente enneigée, patineurs une fois le lac gelé
+  const skiers = buildSkiers(() => ss.snow > 0.6)
+  const skaters = buildSkaters(() => ss.ice > 0.6)
+  scene.add(skiers.group, skaters.group)
   await yieldToBrowser()
   const lake = buildLake()
   scene.add(lake.mesh)
@@ -1679,6 +1880,8 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
   // est gérée ailleurs. `update(k, t, dt)` ne tourne que si l'objet est visible.
   const animated = [
     { object: hikers.group, when: 'day', update: (k, t, dt) => hikers.update(dt) },
+    { object: skiers.group, when: 'day', update: (k, t, dt) => skiers.update(dt) },
+    { object: skaters.group, when: 'day', update: (k, t, dt) => skaters.update(dt) },
     // pêcheur : visibilité gérée par chalet.update (nuit, orage)
     { object: birds.object, when: 'day', allow: () => crowdNow.birds, update: (k, t) => birds.update(t) },
     // arrivent en chute libre au jour, repartent en vol plané à la nuit ou s'il pleut
@@ -1767,6 +1970,7 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
     blossom.setColor(ss.blossom)
     flowers.update(ss.flowers)
     chalet.setSeason(ss)
+    hikers.setGear(ss.snow)
     terrainSeason.uSnow.value = ss.snow
     forest.setWinter(ss.snow, ss.crownSize)
     camps.setSnow(ss.snow)
@@ -1981,6 +2185,8 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
       weatherState = next
       crowdNow = crowd(next.season, next.weather)
       hikers.setCrowd(crowdNow, !running)
+      skiers.setCrowd(crowdNow, !running)
+      skaters.setCrowd(crowdNow, !running)
       chalet.setCrowd(crowdNow, !running)
       camps.setShelter(!crowdNow.campFire, !running)
       copyLook(wxFrom, wx)
