@@ -132,6 +132,9 @@ const WATER_LEVEL = 6.6
 const LAKE_FLOOR = WATER_LEVEL - 2.5
 // Chalet sur la rive gauche : replat juste au-dessus de l'eau, visible depuis la caméra
 const CHALET = { x: 7.8, z: 8.9 }
+// Arbre en fleurs (permanent, il ne fait que changer de couleur), à côté du chalet
+const BLOSSOM = { x: 5.4, z: 11 }
+const LEAF_GROUND = new Color('#c0702e') // tapis de feuilles mortes
 
 // Camps de randonneurs (tentes autour d'un feu), sur des replats visibles depuis
 // la caméra. `scale` grossit le camp perché, plus loin, pour qu'il reste lisible.
@@ -148,6 +151,7 @@ const CAMP_RADIUS = 2.5 // rayon de la clairière aplanie (× scale)
 // chaque placement ajoute sa propre marge via `isBlocked`.
 const OBSTACLES = [
   { x: CHALET.x, z: CHALET.z, r: 2 },
+  { x: BLOSSOM.x, z: BLOSSOM.z, r: 1.5 },
   ...CAMPS.map((c) => ({ x: c.x, z: c.z, r: 3 * c.scale })),
 ]
 
@@ -257,6 +261,8 @@ function buildTerrain() {
   let maxH = 0
   const rockiness = new Float32Array(pos.count)
   const woods = new Float32Array(pos.count)
+  const meadow = new Float32Array(pos.count)
+  const leaves = new Float32Array(pos.count)
 
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i)
@@ -291,20 +297,54 @@ function buildTerrain() {
     tmp.lerp(SNOW, snow)
     // grève autour de l'eau, fond plus sombre en dessous
     const y = pos.getY(i)
+    let shore = 0
     if (nearWater(pos.getX(i), pos.getZ(i), y, 0.7)) {
-      tmp.lerp(SHORE, clamp01(1 - Math.abs(y - WATER_LEVEL - 0.15) / 0.55) * 0.8)
+      shore = clamp01(1 - Math.abs(y - WATER_LEVEL - 0.15) / 0.55)
+      tmp.lerp(SHORE, shore * 0.8)
       tmp.lerp(LAKE_BED, clamp01((WATER_LEVEL - y) / 1.5))
     }
 
     colors[i * 3] = tmp.r
     colors[i * 3 + 1] = tmp.g
     colors[i * 3 + 2] = tmp.b
+
+    // part de prairie (teintée selon la saison) et taches de feuilles mortes
+    // (sous-bois et prairies basses), jamais sur la neige, la grève ni sous l'eau
+    const dry = (1 - snow) * (1 - shore) * (1 - clamp01((WATER_LEVEL - y) / 0.5))
+    meadow[i] = (t < 0.2 ? 1 : clamp01(1 - (t - 0.2) / 0.25)) * (1 - woods[i] * 0.5) * dry
+    leaves[i] =
+      clamp01((noise(pos.getX(i) * 0.11 + 9.3, pos.getZ(i) * 0.11 - 4.1) - 0.5) / 0.15) *
+      clamp01((0.3 - t) / 0.1) *
+      dry
   }
 
   geo.setAttribute('color', new BufferAttribute(colors, 3))
+  geo.setAttribute('aMeadow', new BufferAttribute(meadow, 1))
+  geo.setAttribute('aLeaves', new BufferAttribute(leaves, 1))
 
+  // Saisons : l'herbe des prairies est multipliée par `uGrass` (rapport entre la
+  // teinte de saison et GRASS) et le sol se couvre de feuilles mortes (`uFallen`).
+  const uniforms = {
+    uGrass: { value: new Color(1, 1, 1) },
+    uFallen: { value: 0 },
+    uLeafGround: { value: LEAF_GROUND },
+  }
   const mat = new MeshLambertMaterial({ vertexColors: true })
-  return new Mesh(geo, mat)
+  mat.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms)
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float aMeadow;\nattribute float aLeaves;\nvarying float vMeadow;\nvarying float vLeaves;')
+      .replace('#include <color_vertex>', '#include <color_vertex>\nvMeadow = aMeadow;\nvLeaves = aLeaves;')
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform vec3 uGrass;\nuniform float uFallen;\nuniform vec3 uLeafGround;\nvarying float vMeadow;\nvarying float vLeaves;')
+      .replace(
+        '#include <color_fragment>',
+        '#include <color_fragment>\ndiffuseColor.rgb *= mix(vec3(1.0), uGrass, vMeadow);\ndiffuseColor.rgb = mix(diffuseColor.rgb, uLeafGround, vLeaves * uFallen * 0.6);'
+      )
+  }
+  const mesh = new Mesh(geo, mat)
+  mesh.userData.season = uniforms
+  return mesh
 }
 
 // Données statiques : une fois envoyées à la carte graphique, inutile d'en garder
@@ -843,6 +883,32 @@ function mergeStatic(root, keep = []) {
 }
 
 // Chalet en rondins low-poly, façade tournée vers le lac, avec son ponton.
+// Arbre près du chalet, en fleurs roses au printemps (vert l'été, roux l'automne) :
+// tronc et quelques boules de feuillage, dont deux plus claires.
+function buildBlossomTree() {
+  const group = new Group()
+  const leaves = flatMat('#4f8a48')
+  const light = flatMat('#4f8a48')
+  addMesh(group, new CylinderGeometry(0.07, 0.12, 1.2, 5).translate(0, 0.6, 0), flatMat('#5b4030'))
+  for (const [r, x, y, z, mat] of [
+    [0.5, 0, 1.55, 0, leaves],
+    [0.42, 0.36, 1.35, 0.14, leaves],
+    [0.4, -0.33, 1.4, -0.1, leaves],
+    [0.34, 0.05, 1.9, -0.06, light],
+    [0.3, -0.12, 1.3, 0.34, light],
+  ]) {
+    addMesh(group, new IcosahedronGeometry(r, 0), mat, x, y, z)
+  }
+  group.position.set(BLOSSOM.x, sampleTerrain(BLOSSOM.x, BLOSSOM.z).h - 0.08, BLOSSOM.z)
+  group.rotation.y = 0.6
+  const WHITE = new Color('#ffffff')
+  const setColor = (c) => {
+    leaves.color.copy(c)
+    light.color.copy(c).lerp(WHITE, 0.35)
+  }
+  return { group, setColor }
+}
+
 function buildChalet() {
   const group = new Group()
   const WOOD = flatMat('#7a4e32')
@@ -1327,6 +1393,8 @@ function buildCamps() {
 const NIGHT_DURATION = 2.4
 // Durée d'un changement de météo (s) ; le voile CSS du ciel (style.css) suit.
 const WEATHER_DURATION = 3
+// Durée d'un changement de saison (s)
+const SEASON_DURATION = 4
 
 const yieldToBrowser = () => new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -1383,6 +1451,8 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
   scene.add(lake.mesh)
   const chalet = buildChalet()
   scene.add(chalet.group)
+  const blossom = buildBlossomTree()
+  scene.add(blossom.group)
   const camps = buildCamps()
   scene.add(camps.group)
 
@@ -1473,6 +1543,45 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
     wx.dayA = wxFrom.dayA + (wxTo.dayA - wxFrom.dayA) * e
     wx.nightA = wxFrom.nightA + (wxTo.nightA - wxFrom.nightA) * e
   }
+  // ---------- saisons ----------
+  // Même principe que la météo : instantané `ssFrom` → aspect visé `ssTo`
+  // (SEASON_LOOK), progression `ssP` ; les houppiers suivent avec le même `e`.
+  const SEASON_KEYS = ['flowers', 'fallen', 'falling', 'pumpkins']
+  const seasonOf = (season) => {
+    const L = SEASON_LOOK[season]
+    const out = { grass: new Color(L.grass), blossom: new Color(L.blossom) }
+    for (const key of SEASON_KEYS) out[key] = L[key]
+    return out
+  }
+  const copySeason = (out, src) => {
+    for (const key of SEASON_KEYS) out[key] = src[key]
+    out.grass.copy(src.grass)
+    out.blossom.copy(src.blossom)
+  }
+  const ss = seasonOf('ete') // état courant
+  const ssFrom = seasonOf('ete')
+  let ssTo = seasonOf('ete')
+  let ssP = 1
+  let seasonNow = 'ete'
+  const terrainSeason = terrain.userData.season
+  const GRASS_LINEAR = GRASS.clone()
+  const applySeason = () => {
+    const g = terrainSeason.uGrass.value
+    g.setRGB(ss.grass.r / GRASS_LINEAR.r, ss.grass.g / GRASS_LINEAR.g, ss.grass.b / GRASS_LINEAR.b)
+    terrainSeason.uFallen.value = ss.fallen
+    blossom.setColor(ss.blossom)
+  }
+  const stepSeason = (dt) => {
+    ssP = approach(ssP, 1, dt, SEASON_DURATION)
+    const e = smoothstep(ssP)
+    for (const key of SEASON_KEYS) ss[key] = ssFrom[key] + (ssTo[key] - ssFrom[key]) * e
+    ss.grass.copy(ssFrom.grass).lerp(ssTo.grass, e)
+    ss.blossom.copy(ssFrom.blossom).lerp(ssTo.blossom, e)
+    forest.setColors(e)
+    applySeason()
+  }
+  applySeason()
+
   const fogBase = new Color()
   let hemiBase = 1.4 // intensité hors éclair
   let flash = 0
@@ -1621,6 +1730,7 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
       night = night < nightTarget ? Math.min(nightTarget, night + step) : Math.max(nightTarget, night - step)
       applyNight()
     }
+    if (ssP < 1) stepSeason(dt)
     if (wxP < 1) {
       stepWeather(dt)
       applyNight() // recalcule lumières, brouillard et astres avec la météo
@@ -1655,6 +1765,14 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
     // transition animée si la scène tourne, sinon immédiate (hero hors écran)
     // météo effective ({ season, weather }) : transition si la scène tourne
     setWeather(next) {
+      if (next.season !== seasonNow) {
+        seasonNow = next.season
+        copySeason(ssFrom, ss)
+        ssTo = seasonOf(next.season)
+        forest.target(next.season) // repart des couleurs affichées
+        ssP = 0
+        if (!running) stepSeason(SEASON_DURATION)
+      }
       weatherState = next
       crowdNow = crowd(next.season, next.weather)
       hikers.setCrowd(crowdNow, !running)
