@@ -1336,7 +1336,8 @@ function buildChalet() {
 
   // k = 0 (jour) → 1 (nuit) ; léger vacillement, comme un feu dans la cheminée
   const update = (k, t, dt = 0) => {
-    presence = approach(presence, wantFisher ? 1 : 0, dt, 1.2)
+    // lac gelé : il attend que la glace ait fondu pour revenir pêcher
+    presence = approach(presence, wantFisher && ice < 0.4 ? 1 : 0, dt, 1.2)
     open = approach(open, wantUmbrella ? 1 : 0, dt, 0.8)
     // la nuit il est rentré ; sous l'orage il rapetisse… et rentre aussi
     fisher.visible = k < NIGHT_SWITCH && presence > 0
@@ -1369,17 +1370,19 @@ function buildChalet() {
     wantFisher = stays
     wantUmbrella = umbrellas
     if (now) {
-      presence = stays ? 1 : 0
+      presence = stays && ice < 0.4 ? 1 : 0
       open = umbrellas ? 1 : 0
     }
   }
   // aspect de saison : citrouilles, neige (toit, fumée), décor d'hiver
   let snow = 0
   let decor = 0
+  let ice = 0
   const setSeason = (look) => {
     pumpkins.setAmount(look.pumpkins)
     snow = look.snow
     decor = look.decor
+    ice = look.ice
     roofSnowMat.opacity = snow
     snowCap.visible = snow > 0
   }
@@ -1510,7 +1513,7 @@ function buildIgloo() {
   addMesh(inner, new SphereGeometry(0.25, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2), ICE_BLOCKS)
   // tunnel : demi-cylindre couché vers +z
   const tunnel = new CylinderGeometry(0.1, 0.1, 0.18, 8, 1, false, -Math.PI / 2, Math.PI)
-  tunnel.rotateX(Math.PI / 2)
+  tunnel.rotateX(-Math.PI / 2) // demi-coque vers le haut (y ≥ 0)
   addMesh(inner, tunnel, ICE_BLOCKS, 0, 0, 0.27)
   const DOOR = flatMat('#2a2a30', '#ffb35c')
   addMesh(inner, new CircleGeometry(0.075, 8, 0, Math.PI), DOOR, 0, 0, 0.361)
