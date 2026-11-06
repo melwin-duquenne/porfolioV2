@@ -49,7 +49,7 @@ import {
 } from './ambient.js'
 import { canvasTexture, flatMat } from './helpers.js'
 import { themeColor } from '../themeColors.js'
-import { WEATHER_LOOK, SKY_VEIL, approach, crowd } from '../seasonWeather.js'
+import { WEATHER_LOOK, SKY_VEIL, SEASON_LOOK, approach, crowd, crownColor, stagger } from '../seasonWeather.js'
 
 function seeded(seed) {
   let s = seed
@@ -327,25 +327,38 @@ function freeAfterUpload(mesh) {
   }
 }
 
-// Sapins low-poly en InstancedMesh : des milliers d'arbres en un seul draw call.
+// Forêt low-poly : surtout des feuillus (tronc + houppier), quelques sapins en
+// petits groupes vers le haut des pentes. Un InstancedMesh par forme : des
+// milliers d'arbres en trois appels de dessin. Les houppiers changent de couleur
+// avec les saisons (cf. SEASON_LOOK) : chaque feuillu garde son tirage `v`.
 function buildForest() {
   const MAX = 8000
   const rand = seeded(4242)
 
-  // sapin = cône posé sur le sol (origine à la base), sans fond (jamais visible)
-  const geo = new ConeGeometry(1, 3.4, 6, 1, true)
-  geo.translate(0, 1.7, 0)
-  const mat = new MeshLambertMaterial({ flatShading: true })
-  const trees = new InstancedMesh(geo, mat, MAX)
+  // repère d'un arbre : origine à la base, ~3.4 de haut avant mise à l'échelle
+  const trunkGeo = new CylinderGeometry(0.1, 0.14, 1.3, 3, 1, true)
+  trunkGeo.translate(0, 0.65, 0)
+  const crownGeo = new IcosahedronGeometry(1, 0)
+  crownGeo.scale(1, 1.15, 1)
+  crownGeo.translate(0, 2.25, 0)
+  // sapin = cône posé sur le sol, sans fond (jamais visible)
+  const firGeo = new ConeGeometry(1, 3.4, 6, 1, true)
+  firGeo.translate(0, 1.7, 0)
+
+  const trunks = new InstancedMesh(trunkGeo, flatMat('#5b4030'), MAX)
+  const crowns = new InstancedMesh(crownGeo, new MeshLambertMaterial({ flatShading: true }), MAX)
+  const firs = new InstancedMesh(firGeo, new MeshLambertMaterial({ flatShading: true }), MAX)
 
   const m = new Matrix4()
   const q = new Quaternion()
   const p = new Vector3()
   const s = new Vector3()
+  const up = new Vector3(0, 1, 0)
   const c = new Color()
-  let count = 0
+  const leafy = [] // { x, y, z, r, v, jitter } par feuillu, dans l'ordre des instances
+  let firCount = 0
 
-  for (let tries = 0; tries < 300000 && count < MAX; tries++) {
+  for (let tries = 0; tries < 300000 && leafy.length + firCount < MAX; tries++) {
     const x = (rand() - 0.5) * 300
     const z = -90 + rand() * 135 // pas trop près de la caméra
     // relief de fond seulement : la forêt (base < 6.5) n'atteint jamais la zone
@@ -359,17 +372,71 @@ function buildForest() {
     if (isBlocked(x, z, h, 1.5)) continue
 
     const k = 0.16 + rand() * 0.16 // petits par rapport à l'échelle de la montagne
+    const sy = k * (0.85 + rand() * 0.4)
     p.set(x, h - 0.05, z)
-    s.set(k, k * (0.85 + rand() * 0.4), k)
-    m.compose(p, q, s)
-    trees.setMatrixAt(count, m)
-    c.copy(TREE).offsetHSL((rand() - 0.5) * 0.03, 0, (rand() - 0.5) * 0.08)
-    trees.setColorAt(count, c)
-    count++
+    // sapins : en haut des forêts, par bosquets (tache de bruit à part)
+    const fir = h > 4.5 && noise(x * 0.09 + 5.3, z * 0.09 - 3.7) > 0.6
+    if (fir) {
+      q.identity()
+      s.set(k, sy, k)
+      m.compose(p, q, s)
+      firs.setMatrixAt(firCount, m)
+      c.copy(TREE).offsetHSL((rand() - 0.5) * 0.03, 0, (rand() - 0.5) * 0.08)
+      firs.setColorAt(firCount, c)
+      firCount++
+    } else {
+      q.setFromAxisAngle(up, rand() * Math.PI * 2) // houppiers tous différents
+      const w = k * (0.9 + rand() * 0.3) // houppier plus ou moins large
+      s.set(w, sy, w)
+      m.compose(p, q, s)
+      const i = leafy.length
+      trunks.setMatrixAt(i, m)
+      crowns.setMatrixAt(i, m)
+      leafy.push({ x, y: h - 0.05 + 2.25 * sy, z, r: w, v: rand(), jitter: (rand() - 0.5) * 0.08 })
+    }
   }
 
-  trees.count = count
-  return trees
+  trunks.count = crowns.count = leafy.length
+  firs.count = firCount
+  const group = new Group()
+  group.add(trunks, crowns, firs)
+  for (const mesh of [trunks, crowns, firs]) mesh.frustumCulled = false // arbres partout
+
+  // Couleurs des houppiers : `from` (état au départ d'une transition) → `to`
+  // (saison visée), mélangées dans `instanceColor` (gardé côté JS pour ça).
+  const n = leafy.length
+  for (let i = 0; i < n; i++) crowns.setColorAt(i, c.set(crownColor('ete', leafy[i].v)))
+  const current = crowns.instanceColor.array
+  const from = new Float32Array(n * 3)
+  const to = new Float32Array(n * 3)
+  freeAfterUpload(trunks)
+  freeAfterUpload(firs)
+  crowns.geometry.computeBoundingSphere()
+
+  // nouvelle cible : on part des couleurs affichées en ce moment
+  const target = (season) => {
+    from.set(current.subarray(0, n * 3))
+    for (let i = 0; i < n; i++) {
+      c.set(crownColor(season, leafy[i].v)).offsetHSL(0, 0, leafy[i].jitter)
+      c.toArray(to, i * 3)
+    }
+  }
+  // e : 0 (from) → 1 (to)
+  const setColors = (e) => {
+    for (let i = 0; i < n * 3; i++) current[i] = from[i] + (to[i] - from[i]) * e
+    crowns.instanceColor.needsUpdate = true
+  }
+  target('ete')
+  setColors(1)
+
+  // les `count` houppiers les plus proches de la caméra (feuilles qui tombent)
+  const crownsNear = (count, cam = { x: 0, z: 78 }) =>
+    [...leafy]
+      .sort((a, b) => Math.hypot(a.x - cam.x, a.z - cam.z) - Math.hypot(b.x - cam.x, b.z - cam.z))
+      .slice(0, count)
+      .map(({ x, y, z, r }) => ({ x, y, z, r }))
+
+  return { group, target, setColors, crownsNear, counts: { leafy: n, firs: firCount } }
 }
 
 // Randonneurs : petits personnages (jambes, buste, tête, sac à dos) en
@@ -1307,9 +1374,7 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
   scene.add(terrain)
   await yieldToBrowser()
   const forest = buildForest()
-  forest.frustumCulled = false // arbres partout : inutile de tester la visibilité
-  freeAfterUpload(forest)
-  scene.add(forest)
+  scene.add(forest.group)
   await yieldToBrowser()
   const hikers = buildHikers()
   scene.add(hikers.group)
