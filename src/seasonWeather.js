@@ -51,8 +51,8 @@ export const roundCoord = (v) => Math.round(v * 10) / 10
 export const WEATHER_LOOK = {
   degage: { cover: 0, shade: 0, dim: 0, haze: 0, precip: 0 },
   nuageux: { cover: 1, shade: 0.08, dim: 0.12, haze: 0.25, precip: 0 },
-  pluie: { cover: 1, shade: 0.6, dim: 0.35, haze: 0.45, precip: 0.7 },
-  orage: { cover: 1, shade: 0.95, dim: 0.55, haze: 0.55, precip: 1 },
+  pluie: { cover: 1, shade: 0.6, dim: 0.45, haze: 0.55, precip: 0.7 },
+  orage: { cover: 1, shade: 0.95, dim: 0.65, haze: 0.7, precip: 1 },
 }
 
 // Voile posé sur le ciel CSS du hero ([couleur, opacité]), de jour et de nuit.

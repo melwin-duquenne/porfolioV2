@@ -445,11 +445,12 @@ export function buildParagliders(thermals, colors) {
 // ---------- nuages ----------
 // Sprites lointains qui dérivent lentement ; à placer dans le groupe du ciel, qui
 // suit la caméra. La nuit, ils deviennent sombres et voilent un peu les étoiles.
-export function buildClouds(count = 5) {
-  const group = new Group()
-  // cumulus : bosses bien dessinées sur une base plate, dessous légèrement grisé
-  // (sinon un nuage blanc se perd dans le ciel clair et fait un voile)
-  const variants = [0, 1].map(() =>
+// cumulus : bosses bien dessinées sur une base plate, dessous légèrement grisé
+// (sinon un nuage blanc se perd dans le ciel clair et fait un voile).
+// Textures partagées par les nuages du ciel et la couche de nuages bas.
+let cloudTextures = null
+const getCloudTextures = () =>
+  (cloudTextures ??= [0, 1, 2].map(() =>
     canvasTexture(256, 128, (ctx, w, h) => {
       // tout reste dans le canvas (y + r ≤ 128), sinon le bord du nuage est coupé net
       for (const x of [92, 128, 164]) softBlob(ctx, x, 86, 38, 0.95, 0.55) // base
@@ -464,9 +465,27 @@ export function buildClouds(count = 5) {
       ctx.fillStyle = shade
       ctx.fillRect(0, 0, w, h)
     })
-  )
-  const DAY = new Color('#ffffff')
-  const NIGHT = new Color('#2c3548')
+  ))
+
+// teinte d'un nuage : blanc → gris pluie → quasi noir d'orage (`shade`), et
+// assombri la nuit (`k`)
+const CLOUD_WHITE = new Color('#ffffff')
+const CLOUD_GREY = new Color('#6b737b')
+const CLOUD_BLACK = new Color('#23282d')
+const CLOUD_NIGHT = new Color('#2c3548')
+const CLOUD_NIGHT_STORM = new Color('#0f1216')
+const nightTint = new Color()
+function cloudTint(out, shade, k) {
+  if (shade < 0.6) out.copy(CLOUD_WHITE).lerp(CLOUD_GREY, shade / 0.6)
+  else out.copy(CLOUD_GREY).lerp(CLOUD_BLACK, (shade - 0.6) / 0.4)
+  // la nuit, les nuages s'assombrissent, d'autant plus qu'ils sont chargés
+  nightTint.copy(CLOUD_NIGHT).lerp(CLOUD_NIGHT_STORM, shade)
+  return out.lerp(nightTint, k)
+}
+
+export function buildClouds(count = 5) {
+  const group = new Group()
+  const variants = getCloudTextures()
   const color = new Color()
   const SPAN = 460 // largeur de la boucle de dérive, au-delà du champ de vision
   const clouds = Array.from({ length: count }, (_, i) => {
@@ -484,12 +503,53 @@ export function buildClouds(count = 5) {
     }
   })
 
-  const update = (k, t) => {
-    color.copy(DAY).lerp(NIGHT, k)
+  // `shade` : noirceur des nuages selon la météo (0 = blancs)
+  const update = (k, t, shade = 0) => {
+    cloudTint(color, shade, k)
     for (const c of clouds) {
       const x = ((c.x0 + t * c.speed) % SPAN) - SPAN / 2
       c.sprite.position.set(x, c.y, -300)
-      c.sprite.material.opacity = 0.95 - 0.55 * k
+      c.sprite.material.opacity = 0.95 - 0.55 * k * (1 - shade)
+      c.sprite.material.color.copy(color)
+    }
+  }
+  return { object: group, update }
+}
+
+// ---------- nuages bas (temps couvert) ----------
+// Couche de gros nuages accrochés aux sommets, dans le monde (pas dans le ciel qui
+// suit la caméra) : les crêtes y entrent et disparaissent. `cover` (0..1) les fait
+// apparaître en fondu, `shade` les assombrit (pluie, orage).
+export function buildCloudBank(count = 18) {
+  const group = new Group()
+  const variants = getCloudTextures()
+  const color = new Color()
+  const SPAN = 200 // boucle de dérive en x, plus large que le champ de vision
+  const bank = Array.from({ length: count }, (_, i) => {
+    const sprite = new Sprite(
+      new SpriteMaterial({ map: variants[i % 3], transparent: true, depthWrite: false, fog: false })
+    )
+    const w = 38 + Math.random() * 26
+    sprite.scale.set(w, w * 0.45, 1)
+    group.add(sprite)
+    return {
+      sprite,
+      x0: (i / count) * SPAN + Math.random() * 8,
+      y: 26 + Math.random() * 20, // à hauteur des sommets
+      z: -45 - Math.random() * 55,
+      speed: 0.6 + Math.random() * 0.8,
+      alpha: 0.75 + Math.random() * 0.25,
+    }
+  })
+
+  const update = (t, cover, shade, k) => {
+    group.visible = cover > 0
+    if (!group.visible) return
+    cloudTint(color, shade, k)
+    for (const c of bank) {
+      const x = ((c.x0 + t * c.speed) % SPAN) - SPAN / 2
+      c.sprite.position.set(x, c.y, c.z)
+      c.sprite.material.opacity = cover * c.alpha
       c.sprite.material.color.copy(color)
     }
   }

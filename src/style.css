@@ -153,6 +153,8 @@ ul {
 @property --sky-1 { syntax: "<color>"; inherits: true; initial-value: transparent; }
 @property --sky-2 { syntax: "<color>"; inherits: true; initial-value: transparent; }
 @property --media-bg { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --wx-veil { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --wx-veil-a { syntax: "<number>"; inherits: true; initial-value: 0; }
 :root.anim-on {
   transition-property: --bg, --bg-2, --panel, --panel-2, --ink, --muted, --faint, --line,
     --green, --green-2, --amber, --on-green, --sky-1, --sky-2, --media-bg;
@@ -679,6 +681,18 @@ section {
     var(--sky-2) 46%,
     var(--bg) 100%
   );
+  /* voile météo : même durée que WEATHER_DURATION (mountainScene.js) */
+  transition: --wx-veil 3s ease-in-out, --wx-veil-a 3s ease-in-out;
+}
+/* Voile météo sur le ciel (nuageux, pluie, orage) : la scène 3D mélange la même
+   couleur à son brouillard. Il s'efface vers le bas, comme le dégradé du ciel. */
+.hero__sky::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, var(--wx-veil) 0%, var(--wx-veil) 55%, transparent 100%);
+  opacity: var(--wx-veil-a);
+  pointer-events: none;
 }
 .hero__sun {
   position: absolute;

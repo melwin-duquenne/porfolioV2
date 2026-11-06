@@ -1,7 +1,8 @@
 <template>
   <section id="hero" ref="section" class="hero" :class="{ 'hero--3d': is3D }">
     <div class="hero__media">
-      <div class="hero__sky"></div>
+      <!-- voile météo (et flash d'éclair) posé sur le ciel, seulement avec la 3D -->
+      <div class="hero__sky" :style="is3D ? skyVeil : null"></div>
       <div ref="photo" class="hero__photo"></div>
       <canvas ref="canvas3d" class="hero__canvas" aria-hidden="true"></canvas>
       <div class="hero__grad"></div>
@@ -39,12 +40,13 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import SvgIcon from '../ui/SvgIcon.vue'
 import aboutData from '../../data/about.json'
 import { useParallax } from '../../composables/useParallax'
 import { useTheme } from '../../composables/useTheme'
-import { scene3dActive } from '../../composables/useSeasonWeather'
+import { scene3dActive, useSeasonWeather } from '../../composables/useSeasonWeather'
+import { SKY_VEIL } from '../../seasonWeather.js'
 
 const first = aboutData.first
 const last = aboutData.last
@@ -113,6 +115,7 @@ async function init3D() {
     // construite par étapes : le composant a pu être démonté entre-temps
     if (unmounted) return teardown3D()
     scene3d.setNight(isDark.value) // immédiat : la boucle ne tourne pas encore
+    scene3d.setWeather(effective.value)
   } catch (e) {
     return // WebGL indisponible : on reste sur la photo
   }
@@ -128,6 +131,14 @@ async function init3D() {
 // mode nuit de la montagne, calé sur le thème du site
 const { isDark } = useTheme()
 watch(isDark, (dark) => scene3d?.setNight(dark))
+
+// saison / météo (menu ou automatique) → scène, et voile du ciel CSS assorti
+const { effective } = useSeasonWeather()
+watch(effective, (next) => scene3d?.setWeather(next))
+const skyVeil = computed(() => {
+  const [color, alpha] = SKY_VEIL[effective.value.weather][isDark.value ? 'night' : 'day']
+  return { '--wx-veil': color, '--wx-veil-a': alpha }
+})
 
 onMounted(() => {
   const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 1200))

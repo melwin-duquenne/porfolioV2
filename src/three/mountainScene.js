@@ -32,10 +32,12 @@ import {
   PointsMaterial,
   PointLight,
   AdditiveBlending,
+  SRGBColorSpace,
 } from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import {
   buildBirds,
+  buildCloudBank,
   buildClouds,
   buildFireflies,
   buildFishJump,
@@ -45,6 +47,7 @@ import {
 } from './ambient.js'
 import { canvasTexture, flatMat } from './helpers.js'
 import { themeColor } from '../themeColors.js'
+import { WEATHER_LOOK, SKY_VEIL, approach } from '../seasonWeather.js'
 
 function seeded(seed) {
   let s = seed
@@ -91,6 +94,21 @@ function ridged(noise, x, y) {
 
 const clamp01 = (v) => Math.min(1, Math.max(0, v))
 const smoothstep = (t) => t * t * (3 - 2 * t) // t dans [0, 1]
+
+// Mélange de couleurs comme le fait le CSS (en sRGB) : Three.js mélange en
+// linéaire, ce qui donnerait un brouillard plus clair que le voile du ciel.
+const rgbA = { r: 0, g: 0, b: 0 }
+const rgbB = { r: 0, g: 0, b: 0 }
+function mixSRGB(out, a, b, t) {
+  a.getRGB(rgbA, SRGBColorSpace)
+  b.getRGB(rgbB, SRGBColorSpace)
+  return out.setRGB(
+    rgbA.r + (rgbB.r - rgbA.r) * t,
+    rgbA.g + (rgbB.g - rgbA.g) * t,
+    rgbA.b + (rgbB.b - rgbA.b) * t,
+    SRGBColorSpace
+  )
+}
 const easeOutCubic = (t) => 1 - (1 - t) ** 3
 // dépasse un peu 1 avant de s'y poser (petit rebond)
 const easeOutBack = (t) => 1 + 2.2 * (t - 1) ** 3 + 1.2 * (t - 1) ** 2
@@ -1129,6 +1147,8 @@ function buildCamps() {
 // Durée de la bascule jour ↔ nuit (s) : le temps de voir le soleil se coucher et
 // la lune se lever. Le ciel CSS (--sky-1/2, style.css) suit la même durée.
 const NIGHT_DURATION = 2.4
+// Durée d'un changement de météo (s) ; le voile CSS du ciel (style.css) suit.
+const WEATHER_DURATION = 3
 
 const yieldToBrowser = () => new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -1206,6 +1226,8 @@ export async function createMountainScene(canvas, { onSlow } = {}) {
   stars.add(shootingStar.object) // dans les étoiles : apparaît et disparaît avec elles
   const clouds = buildClouds()
   sky.add(clouds.object)
+  const cloudBank = buildCloudBank() // temps couvert : nuages accrochés aux sommets
+  scene.add(cloudBank.object)
   scene.add(fireflies.object, birds.object, paragliders.object)
 
   // Éléments animés et bascule jour/nuit. `when` : 'day' | 'night' = visible
@@ -1222,7 +1244,8 @@ export async function createMountainScene(canvas, { onSlow } = {}) {
     { object: lake.mesh, update: (k, t) => lake.update(t) },
     { object: chalet.group, update: chalet.update },
     { object: camps.group, update: camps.update }, // installe / défait les camps
-    { object: clouds.object, update: clouds.update },
+    { object: clouds.object, update: (k, t) => clouds.update(k, t, wx.shade) },
+    { object: cloudBank.object, update: null }, // mis à jour à chaque image (cf. tick)
   ]
 
   // ---------- jour / nuit ----------
@@ -1235,6 +1258,42 @@ export async function createMountainScene(canvas, { onSlow } = {}) {
     [lake.mesh.material.color, new Color('#22394a')],
     [lake.mesh.material.specular, new Color('#cdd8ff')],
   ].map(([color, nightColor]) => [color, color.clone(), nightColor])
+  // ---------- météo ----------
+  // État continu qui glisse vers l'aspect de la météo choisie (WEATHER_LOOK) en
+  // WEATHER_DURATION s, plus le voile du ciel (même couleur que le CSS du hero).
+  // Une bascule part de l'état courant (`from`) vers la cible (`to`) avec une
+  // progression `wxP` de 0 à 1 : changer d'avis en cours de route ne fait pas sauter.
+  const lookOf = (weather) => {
+    const [dayC, dayA] = SKY_VEIL[weather].day
+    const [nightC, nightA] = SKY_VEIL[weather].night
+    return { ...WEATHER_LOOK[weather], day: new Color(dayC), night: new Color(nightC), dayA, nightA }
+  }
+  const copyLook = (out, src) => {
+    for (const key of Object.keys(WEATHER_LOOK.degage)) out[key] = src[key]
+    out.day.copy(src.day)
+    out.night.copy(src.night)
+    out.dayA = src.dayA
+    out.nightA = src.nightA
+    return out
+  }
+  const wx = lookOf('degage') // état courant
+  const wxFrom = lookOf('degage')
+  let wxTo = lookOf('degage')
+  let wxP = 1
+  let weatherState = { season: 'ete', weather: 'degage' }
+  const stepWeather = (dt) => {
+    wxP = approach(wxP, 1, dt, WEATHER_DURATION)
+    const e = smoothstep(wxP) // même allure que la transition CSS (ease-in-out)
+    for (const key of Object.keys(WEATHER_LOOK.degage)) wx[key] = wxFrom[key] + (wxTo[key] - wxFrom[key]) * e
+    wx.day.copy(wxFrom.day).lerp(wxTo.day, e)
+    wx.night.copy(wxFrom.night).lerp(wxTo.night, e)
+    wx.dayA = wxFrom.dayA + (wxTo.dayA - wxFrom.dayA) * e
+    wx.nightA = wxFrom.nightA + (wxTo.nightA - wxFrom.nightA) * e
+  }
+  const fogBase = new Color()
+  const veilNow = new Color()
+  const FOG = { near: 50, far: 210 }
+
   let night = 0
   let nightTarget = 0
   let running = false
@@ -1245,11 +1304,30 @@ export async function createMountainScene(canvas, { onSlow } = {}) {
   let towardNight = true
 
   let nightK // `night` lissé, réutilisé par les animations du chalet et des camps
+
+  // jour/nuit × météo : lumières, brouillard (fondu dans le ciel CSS voilé), astres
+  const applyLook = () => {
+    const k = nightK
+    for (const [color, day, dark] of colors) color.copy(day).lerp(dark, k)
+    // brouillard = ciel du thème recouvert du même voile que le CSS du hero
+    fogBase.copy(scene.fog.color)
+    veilNow.copy(wx.day).lerp(wx.night, k)
+    const veilA = wx.dayA + (wx.nightA - wx.dayA) * k
+    mixSRGB(scene.fog.color, fogBase, veilNow, veilA)
+    scene.fog.near = FOG.near * (1 - 0.6 * wx.haze)
+    scene.fog.far = FOG.far * (1 - 0.5 * wx.haze)
+    hemi.intensity = (1.4 - 0.7 * k) * (1 - wx.dim)
+    // ciel couvert : presque plus de lumière directe (soleil ou lune)
+    sun.intensity = (2.4 - 1.3 * k) * (1 - 0.75 * wx.cover) * (1 - wx.dim)
+    // derrière la couche nuageuse, soleil, lune et étoiles disparaissent
+    const clear = 1 - wx.cover
+    sunDisc.material.opacity *= clear
+    moonDisc.material.opacity *= clear
+    stars.material.opacity *= clear
+  }
+
   const applyNight = () => {
     const k = (nightK = smoothstep(night))
-    for (const [color, day, dark] of colors) color.copy(day).lerp(dark, k)
-    hemi.intensity = 1.4 - 0.7 * k
-    sun.intensity = 2.4 - 1.3 * k
     // le soleil part d'abord, la lune arrive ensuite (elles se croisent à mi-course)
     const sunGone = clamp01(k / 0.6)
     const moonUp = clamp01((k - 0.4) / 0.6)
@@ -1264,6 +1342,7 @@ export async function createMountainScene(canvas, { onSlow } = {}) {
     sunDisc.visible = sunGone < 1
     moonDisc.visible = moonUp > 0
     stars.visible = k > 0
+    applyLook()
     // objets de jour ↔ de nuit : la nuit, les randonneurs sont au camp
     const isNight = k >= NIGHT_SWITCH
     for (const { object, when } of animated) {
@@ -1357,6 +1436,11 @@ export async function createMountainScene(canvas, { onSlow } = {}) {
       night = night < nightTarget ? Math.min(nightTarget, night + step) : Math.max(nightTarget, night - step)
       applyNight()
     }
+    if (wxP < 1) {
+      stepWeather(dt)
+      applyNight() // recalcule lumières, brouillard et astres avec la météo
+    }
+    cloudBank.update(elapsed, wx.cover, wx.shade, nightK)
 
     for (const { object, update } of animated) {
       if (update && object.visible) update(nightK, elapsed, dt)
@@ -1376,6 +1460,18 @@ export async function createMountainScene(canvas, { onSlow } = {}) {
       renderer.setAnimationLoop(null)
     },
     // transition animée si la scène tourne, sinon immédiate (hero hors écran)
+    // météo effective ({ season, weather }) : transition si la scène tourne
+    setWeather(next) {
+      weatherState = next
+      copyLook(wxFrom, wx)
+      wxTo = lookOf(next.weather)
+      wxP = 0
+      if (!running) {
+        stepWeather(WEATHER_DURATION)
+        applyNight()
+        cloudBank.update(elapsed, wx.cover, wx.shade, nightK)
+      }
+    },
     setNight(on) {
       if (night === 0 || night === 1) towardNight = !!on
       nightTarget = on ? 1 : 0
