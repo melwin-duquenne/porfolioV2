@@ -44,6 +44,7 @@ import SvgIcon from '../ui/SvgIcon.vue'
 import aboutData from '../../data/about.json'
 import { useParallax } from '../../composables/useParallax'
 import { useTheme } from '../../composables/useTheme'
+import { scene3dActive } from '../../composables/useSeasonWeather'
 
 const first = aboutData.first
 const last = aboutData.last
@@ -91,7 +92,7 @@ function canUse3D() {
 }
 
 function teardown3D() {
-  is3D.value = false
+  is3D.value = scene3dActive.value = false
   io?.disconnect()
   io = null
   scene3d?.dispose()
@@ -116,7 +117,7 @@ async function init3D() {
     else scene3d?.stop()
   })
   io.observe(section.value)
-  is3D.value = true
+  is3D.value = scene3dActive.value = true
 }
 
 // mode nuit de la montagne, calé sur le thème du site

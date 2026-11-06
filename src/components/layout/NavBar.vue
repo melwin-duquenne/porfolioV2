@@ -13,6 +13,8 @@
           :active="active === link.target"
         />
       </div>
+      <!-- saison / météo de la montagne 3D : seulement quand elle tourne -->
+      <SeasonWeatherMenu v-if="scene3dActive" />
       <button
         type="button"
         class="theme-toggle"
@@ -32,6 +34,8 @@
 <script setup>
 import NavLink from '../ui/NavLink.vue'
 import SvgIcon from '../ui/SvgIcon.vue'
+import SeasonWeatherMenu from '../ui/SeasonWeatherMenu.vue'
+import { scene3dActive } from '../../composables/useSeasonWeather'
 import { useScrollSpy } from '../../composables/useScrollSpy'
 import { useTheme } from '../../composables/useTheme'
 

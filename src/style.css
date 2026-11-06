@@ -455,6 +455,104 @@ section {
   transform: none;
 }
 
+/* Menu saison / météo (à côté du jour/nuit) : bouton + panneau qui s'ouvre */
+.sw {
+  position: relative;
+  flex: none;
+}
+.sw__toggle[aria-expanded="true"] {
+  border-color: var(--green);
+}
+.sw__icon {
+  opacity: 1;
+  transform: none;
+}
+.sw__panel {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  z-index: 60;
+  width: 264px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: color-mix(in oklab, var(--panel) 82%, transparent);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+.sw__label {
+  margin: 0 0 8px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.sw__row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.sw__chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 2px 7px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  transition: border-color 0.3s, background-color 0.3s, color 0.3s;
+}
+.sw__chip-icon {
+  width: 18px;
+  height: 18px;
+}
+.sw__chip:hover:not(:disabled),
+.sw__pill:hover {
+  border-color: var(--green);
+}
+.sw__chip[aria-pressed="true"],
+.sw__pill[aria-pressed="true"] {
+  border-color: var(--green);
+  background: var(--green);
+  color: var(--on-green);
+}
+.sw__chip:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.sw__chip:focus-visible,
+.sw__pill:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+.sw__foot {
+  display: flex;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.sw__pill {
+  flex: 1;
+  padding: 7px 8px;
+  border-radius: 100px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  transition: border-color 0.3s, background-color 0.3s, color 0.3s;
+}
+.sw__source {
+  margin: 10px 0 0;
+  color: var(--muted);
+  text-align: right;
+}
+
 /* ============================================================ Buttons */
 .btn {
   position: relative;

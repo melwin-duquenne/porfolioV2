@@ -38,6 +38,7 @@
       "paragraphs": [
         "Ce site ne collecte aucune donnée personnelle de manière automatisée. Aucun formulaire de saisie, aucun cookie de traçage ou d'analyse (Google Analytics, etc.) n'est utilisé.",
         "Le lien de contact (mailto:) ouvre le client de messagerie de l'utilisateur. Aucune donnée n'est transmise ni stockée par ce site lors de cette action.",
+        "La scène 3D peut afficher la météo réelle via le service Open-Meteo (open-meteo.com), interrogé directement par votre navigateur, sans cookie. Par défaut, la météo est celle d'Auch. Si vous cliquez sur « Ma météo locale » et l'acceptez, votre position, arrondie à environ 10 km, n'est transmise qu'à Open-Meteo ; elle n'est ni envoyée à ce site ni conservée après votre visite.",
         "Conformément au Règlement Général sur la Protection des Données (RGPD — Règlement UE 2016/679) et à la loi Informatique et Libertés, vous disposez d'un droit d'accès, de rectification et de suppression des données vous concernant. Pour exercer ce droit, contactez : melwin.duquenne.dev@gmail.com"
       ]
     },

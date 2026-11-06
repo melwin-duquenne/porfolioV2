@@ -58,6 +58,39 @@
     <template v-else-if="name === 'moon'">
       <path d="M20.5 14.5A8.5 8.5 0 1 1 9.5 3.5a6.5 6.5 0 0 0 11 11Z" />
     </template>
+    <template v-else-if="name === 'sliders'">
+      <path d="M4 7h10M18 7h2M4 17h4M12 17h8" />
+      <circle cx="16" cy="7" r="2" />
+      <circle cx="10" cy="17" r="2" />
+    </template>
+    <template v-else-if="name === 'flower'">
+      <circle cx="12" cy="8" r="2.2" />
+      <path d="M12 5.8c-.9-2.6 2.9-2.6 2-.1M14.2 8c2.6-.9 2.6 2.9.1 2M12 10.2c.9 2.6-2.9 2.6-2 .1M9.8 8c-2.6.9-2.6-2.9-.1-2" />
+      <path d="M12 10.5V21M12 17c-1.5-2-4-2-4-2M12 15c1.5-2 4-2 4-2" />
+    </template>
+    <template v-else-if="name === 'tree'">
+      <path d="M12 21v-5" />
+      <path d="M7.5 16h9a4 4 0 0 0 .6-7.95 5 5 0 0 0-10.2 0A4 4 0 0 0 7.5 16Z" />
+    </template>
+    <template v-else-if="name === 'leaf'">
+      <path d="M5 19C5 10.5 10.5 5 19 5c0 8.5-5.5 14-14 14Z" />
+      <path d="M5 19l8.5-8.5" />
+    </template>
+    <template v-else-if="name === 'snowflake'">
+      <path d="M12 2v20M3.3 7l17.4 10M3.3 17l17.4-10" />
+      <path d="M9.5 3.5 12 6l2.5-2.5M9.5 20.5 12 18l2.5 2.5" />
+    </template>
+    <template v-else-if="name === 'cloud'">
+      <path d="M7 19h10a4.5 4.5 0 0 0 .6-8.96A6 6 0 0 0 6.1 11.6 3.7 3.7 0 0 0 7 19Z" />
+    </template>
+    <template v-else-if="name === 'cloud-rain'">
+      <path d="M7 15h10a4.5 4.5 0 0 0 .6-8.96A6 6 0 0 0 6.1 7.6 3.7 3.7 0 0 0 7 15Z" />
+      <path d="M8 18l-1 3M12 18l-1 3M16 18l-1 3" />
+    </template>
+    <template v-else-if="name === 'cloud-bolt'">
+      <path d="M7 15h10a4.5 4.5 0 0 0 .6-8.96A6 6 0 0 0 6.1 7.6 3.7 3.7 0 0 0 7 15Z" />
+      <path d="M13 15l-2.5 3.5h3L11 22" />
+    </template>
     <template v-else-if="name === 'close'">
       <path d="M6 6l12 12M18 6L6 18" />
     </template>
