@@ -3,6 +3,7 @@
     <div class="hero__media">
       <!-- voile météo (et flash d'éclair) posé sur le ciel, seulement avec la 3D -->
       <div class="hero__sky" :style="is3D ? skyVeil : null"></div>
+      <div ref="flashEl" class="hero__flash"></div>
       <div ref="photo" class="hero__photo"></div>
       <canvas ref="canvas3d" class="hero__canvas" aria-hidden="true"></canvas>
       <div class="hero__grad"></div>
@@ -66,6 +67,7 @@ useParallax(section, photo, { depth: 0.16, enabled: () => !is3D.value })
 // La photo reste le rendu par défaut : la 3D n'est chargée qu'après le premier
 // affichage, et seulement sur desktop correct. Mobile / PC faible gardent la photo.
 const canvas3d = ref(null)
+const flashEl = ref(null)
 const is3D = ref(false)
 let scene3d = null
 let io = null
@@ -111,7 +113,11 @@ async function init3D() {
   try {
     const { createMountainScene } = await import('../../three/mountainScene.js')
     if (unmounted) return
-    scene3d = await createMountainScene(canvas3d.value, { onSlow: DEBUG_3D ? null : teardown3D })
+    scene3d = await createMountainScene(canvas3d.value, {
+      onSlow: DEBUG_3D ? null : teardown3D,
+      // éclair : le ciel CSS s'illumine avec la scène
+      onFlash: (f) => flashEl.value?.style.setProperty('opacity', f.toFixed(3)),
+    })
     // construite par étapes : le composant a pu être démonté entre-temps
     if (unmounted) return teardown3D()
     scene3d.setNight(isDark.value) // immédiat : la boucle ne tourne pas encore

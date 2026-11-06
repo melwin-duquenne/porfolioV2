@@ -11,6 +11,8 @@ import {
   Euler,
   Group,
   InstancedMesh,
+  LineBasicMaterial,
+  LineSegments,
   Matrix4,
   Mesh,
   MeshBasicMaterial,
@@ -604,4 +606,175 @@ export function buildFishJump({ water, z }) {
     })
   }
   return { object: group, update }
+}
+
+// ---------- pluie et neige qui tombent ----------
+// Volume fixe dans le monde, entre la caméra et le fond de la vallée : les gouttes
+// proches passent vite et grandes, les lointaines se perdent dans le brouillard.
+// `amount` (0..1) règle la densité (on dessine plus ou moins de gouttes, sans
+// pop) ; `snow` (booléen) fait glisser de la pluie à la neige en ~2 s.
+const PRECIP_BOX = { x: 45, y0: -2, y1: 40, z0: -30, z1: 70 }
+export function buildPrecipitation() {
+  const group = new Group()
+  const box = PRECIP_BOX
+  const spawn = (arr, i) => {
+    arr[i] = (Math.random() * 2 - 1) * box.x
+    arr[i + 1] = box.y0 + Math.random() * (box.y1 - box.y0)
+    arr[i + 2] = box.z0 + Math.random() * (box.z1 - box.z0)
+  }
+
+  // pluie : traits fins, inclinés par le vent
+  const RAIN = 1600
+  const DROP = 0.8 // longueur d'une goutte
+  const FALL = 26 // vitesse de chute
+  const WIND = 0.18 // inclinaison (déplacement en x par unité de chute)
+  const drops = new Float32Array(RAIN * 3)
+  for (let i = 0; i < RAIN; i++) spawn(drops, i * 3)
+  const rainPos = new Float32Array(RAIN * 6)
+  const rainGeo = new BufferGeometry()
+  rainGeo.setAttribute('position', new BufferAttribute(rainPos, 3))
+  const rain = new LineSegments(
+    rainGeo,
+    new LineBasicMaterial({ color: '#c3ccd6', transparent: true, opacity: 0.5, depthWrite: false })
+  )
+  rain.frustumCulled = false
+
+  // neige : flocons qui tombent doucement en ondulant
+  const SNOW = 2600
+  const flakes = new Float32Array(SNOW * 3)
+  const sway = new Float32Array(SNOW)
+  for (let i = 0; i < SNOW; i++) {
+    spawn(flakes, i * 3)
+    sway[i] = Math.random() * Math.PI * 2
+  }
+  const snowPos = new Float32Array(SNOW * 3)
+  const snowGeo = new BufferGeometry()
+  snowGeo.setAttribute('position', new BufferAttribute(snowPos, 3))
+  const snow = new Points(
+    snowGeo,
+    new PointsMaterial({
+      color: '#ffffff',
+      size: 0.32, // ~3 px à mi-distance, plus gros tout près de la caméra
+      map: canvasTexture(32, 32, (ctx) => softBlob(ctx, 16, 16, 15, 1, 0.45)), // flocon rond
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
+    })
+  )
+  snow.frustumCulled = false
+  group.add(rain, snow)
+
+  let snowMix = 0
+  let t = 0
+  const wrap = (arr, i) => {
+    if (arr[i + 1] < box.y0) {
+      arr[i + 1] += box.y1 - box.y0
+      arr[i] = (Math.random() * 2 - 1) * box.x
+    }
+  }
+
+  const update = (dt, amount, isSnow) => {
+    t += dt
+    snowMix = Math.min(1, Math.max(0, snowMix + (isSnow ? dt : -dt) / 2))
+    const nRain = Math.floor(RAIN * amount * (1 - snowMix))
+    const nSnow = Math.floor(SNOW * amount * snowMix)
+    rain.visible = nRain > 0
+    snow.visible = nSnow > 0
+
+    if (rain.visible) {
+      for (let i = 0; i < nRain; i++) {
+        const j = i * 3
+        drops[j + 1] -= FALL * dt
+        drops[j] -= FALL * WIND * dt
+        wrap(drops, j)
+        const k = i * 6
+        rainPos[k] = drops[j]
+        rainPos[k + 1] = drops[j + 1]
+        rainPos[k + 2] = drops[j + 2]
+        rainPos[k + 3] = drops[j] + DROP * WIND
+        rainPos[k + 4] = drops[j + 1] + DROP
+        rainPos[k + 5] = drops[j + 2]
+      }
+      rainGeo.setDrawRange(0, nRain * 2)
+      rainGeo.attributes.position.needsUpdate = true
+    }
+    if (snow.visible) {
+      for (let i = 0; i < nSnow; i++) {
+        const j = i * 3
+        flakes[j + 1] -= 1.4 * dt
+        wrap(flakes, j)
+        snowPos[j] = flakes[j] + Math.sin(t * 0.8 + sway[i]) * 0.6
+        snowPos[j + 1] = flakes[j + 1]
+        snowPos[j + 2] = flakes[j + 2] + Math.cos(t * 0.6 + sway[i]) * 0.4
+      }
+      snowGeo.setDrawRange(0, nSnow)
+      snowGeo.attributes.position.needsUpdate = true
+    }
+  }
+  return { object: group, update }
+}
+
+// ---------- éclairs (orage) ----------
+// Toutes les 4 à 11 s : un éclair en zigzag tombe au loin, avec un double flash.
+// `update` renvoie l'intensité du flash (0..1), que la scène ajoute à sa lumière
+// et que le hero applique au ciel CSS.
+export function buildLightning() {
+  const WIDTH = 0.9
+  const POINTS = 14
+  const pos = new Float32Array(POINTS * 2 * 3)
+  const index = []
+  for (let i = 0; i < POINTS - 1; i++) {
+    const a = i * 2
+    index.push(a, a + 1, a + 2, a + 2, a + 1, a + 3)
+  }
+  const geo = new BufferGeometry()
+  geo.setAttribute('position', new BufferAttribute(pos, 3))
+  geo.setIndex(index)
+  const bolt = new Mesh(
+    geo,
+    new MeshBasicMaterial({ color: '#eef3ff', fog: false, transparent: true, depthWrite: false, side: DoubleSide })
+  )
+  bolt.frustumCulled = false
+  bolt.visible = false
+
+  // ruban en zigzag du haut du ciel jusque derrière les crêtes
+  const reshape = () => {
+    let x = (Math.random() * 2 - 1) * 90
+    const z = -140 - Math.random() * 60
+    for (let i = 0; i < POINTS; i++) {
+      const y = 100 - (i / (POINTS - 1)) * 75
+      if (i) x += (Math.random() - 0.5) * 9
+      const w = WIDTH * (1 - (i / POINTS) * 0.6)
+      pos.set([x - w, y, z, x + w, y, z], i * 6)
+    }
+    geo.attributes.position.needsUpdate = true
+  }
+
+  // double flash : [début, fin, intensité] en secondes depuis l'impact
+  const PULSES = [
+    [0, 0.12, 1],
+    [0.2, 0.3, 0.65],
+  ]
+  let next = 3 + Math.random() * 4
+  let since = Infinity
+
+  const update = (dt, active) => {
+    since += dt
+    if (active) {
+      next -= dt
+      if (next <= 0) {
+        next = 4 + Math.random() * 7
+        since = 0
+        reshape()
+      }
+    }
+    let flash = 0
+    for (const [a, b, f] of PULSES) {
+      if (since >= a && since < b) flash = f * (1 - (since - a) / (b - a) * 0.5)
+    }
+    bolt.visible = flash > 0.3
+    bolt.material.opacity = flash
+    return flash
+  }
+  return { object: bolt, update }
 }

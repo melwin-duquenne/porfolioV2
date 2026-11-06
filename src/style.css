@@ -684,6 +684,14 @@ section {
   /* voile météo : même durée que WEATHER_DURATION (mountainScene.js) */
   transition: --wx-veil 3s ease-in-out, --wx-veil-a 3s ease-in-out;
 }
+/* Flash d'éclair sur le ciel (opacité posée par la scène 3D, sans transition) */
+.hero__flash {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #dfe6ff 0%, rgba(223, 230, 255, 0.5) 60%, transparent 100%);
+  opacity: 0;
+  pointer-events: none;
+}
 /* Voile météo sur le ciel (nuageux, pluie, orage) : la scène 3D mélange la même
    couleur à son brouillard. Il s'efface vers le bas, comme le dégradé du ciel. */
 .hero__sky::after {

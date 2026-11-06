@@ -41,7 +41,9 @@ import {
   buildClouds,
   buildFireflies,
   buildFishJump,
+  buildLightning,
   buildParagliders,
+  buildPrecipitation,
   buildShootingStar,
   buildSmoke,
 } from './ambient.js'
@@ -1157,7 +1159,7 @@ const yieldToBrowser = () => new Promise((resolve) => setTimeout(resolve, 0))
  * `onSlow` est appelé si la machine n'arrive pas à suivre (fallback photo).
  * Jour ou nuit : via `setNight`, appliqué tout de suite tant que la boucle ne tourne pas.
  */
-export async function createMountainScene(canvas, { onSlow } = {}) {
+export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
   const renderer = new WebGLRenderer({
     canvas,
     alpha: true, // le dégradé CSS du ciel reste visible derrière
@@ -1228,6 +1230,9 @@ export async function createMountainScene(canvas, { onSlow } = {}) {
   sky.add(clouds.object)
   const cloudBank = buildCloudBank() // temps couvert : nuages accrochés aux sommets
   scene.add(cloudBank.object)
+  const precipitation = buildPrecipitation()
+  const lightning = buildLightning()
+  scene.add(precipitation.object, lightning.object)
   scene.add(fireflies.object, birds.object, paragliders.object)
 
   // Éléments animés et bascule jour/nuit. `when` : 'day' | 'night' = visible
@@ -1291,6 +1296,8 @@ export async function createMountainScene(canvas, { onSlow } = {}) {
     wx.nightA = wxFrom.nightA + (wxTo.nightA - wxFrom.nightA) * e
   }
   const fogBase = new Color()
+  let hemiBase = 1.4 // intensité hors éclair
+  let flash = 0
   const veilNow = new Color()
   const FOG = { near: 50, far: 210 }
 
@@ -1316,7 +1323,7 @@ export async function createMountainScene(canvas, { onSlow } = {}) {
     mixSRGB(scene.fog.color, fogBase, veilNow, veilA)
     scene.fog.near = FOG.near * (1 - 0.6 * wx.haze)
     scene.fog.far = FOG.far * (1 - 0.5 * wx.haze)
-    hemi.intensity = (1.4 - 0.7 * k) * (1 - wx.dim)
+    hemi.intensity = hemiBase = (1.4 - 0.7 * k) * (1 - wx.dim)
     // ciel couvert : presque plus de lumière directe (soleil ou lune)
     sun.intensity = (2.4 - 1.3 * k) * (1 - 0.75 * wx.cover) * (1 - wx.dim)
     // derrière la couche nuageuse, soleil, lune et étoiles disparaissent
@@ -1441,6 +1448,14 @@ export async function createMountainScene(canvas, { onSlow } = {}) {
       applyNight() // recalcule lumières, brouillard et astres avec la météo
     }
     cloudBank.update(elapsed, wx.cover, wx.shade, nightK)
+    precipitation.update(dt, wx.precip, weatherState.season === 'hiver')
+    // éclairs seulement une fois l'orage bien installé
+    const f = lightning.update(dt, weatherState.weather === 'orage' && wx.shade > 0.8)
+    if (f || flash) {
+      flash = f
+      hemi.intensity = hemiBase + flash * 1.6
+      onFlash?.(flash)
+    }
 
     for (const { object, update } of animated) {
       if (update && object.visible) update(nightK, elapsed, dt)
