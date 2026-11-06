@@ -1056,8 +1056,10 @@ function buildLake() {
     opacity: 0.82,
   })
   const time = { value: 0 }
+  const red = { value: 0 } // easter egg : le lac vire au rouge sang
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = time
+    shader.uniforms.uRed = red
     shader.vertexShader = shader.vertexShader
       .replace('void main() {', 'varying vec2 vWPos;\nvoid main() {')
       .replace(
@@ -1065,7 +1067,16 @@ function buildLake() {
         '#include <begin_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xz;'
       )
     shader.fragmentShader = shader.fragmentShader
-      .replace('void main() {', 'uniform float uTime;\nvarying vec2 vWPos;\nvoid main() {')
+      .replace('void main() {', 'uniform float uTime;\nuniform float uRed;\nvarying vec2 vWPos;\nvoid main() {')
+      .replace(
+        '#include <color_fragment>',
+        '#include <color_fragment>\ndiffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.42, 0.015, 0.03), uRed);'
+      )
+      // reflets du soleil teintés aussi : sinon ils restent blancs sur l'eau rouge
+      .replace(
+        '#include <opaque_fragment>',
+        'outgoingLight = mix(outgoingLight, outgoingLight * vec3(1.0, 0.22, 0.2), uRed);\n#include <opaque_fragment>'
+      )
       .replace(
         '#include <normal_fragment_begin>',
         `#include <normal_fragment_begin>
@@ -1078,7 +1089,8 @@ function buildLake() {
   }
   const mesh = new Mesh(geo, mat)
   mesh.position.set(LAKE.x, WATER_LEVEL, LAKE.z)
-  return { mesh, update: (t) => (time.value = t) }
+  const setRed = (v) => (red.value = v)
+  return { mesh, update: (t) => (time.value = t), setRed }
 }
 
 // ---------- petits objets low-poly (chalet, camps, personnages) ----------
@@ -1347,6 +1359,76 @@ function buildChalet(fisherReady) {
   const anglerPresence = crowdPresence([angler], group, 'fisher', { ready: fisherReady, duration: () => 1.2, share: 1 })
   let open = 0
   let wantUmbrella = false
+  // ---------- easter egg d'automne : la créature du lac ----------
+  // Double-clic sur le pêcheur : le lac rougit, une tentacule sort de l'eau,
+  // l'attrape et l'entraîne au fond ; il remonte quelques secondes plus tard
+  // et reprend sa place. Repère du chalet : le ponton part vers +z.
+  const EGG_END = 8.2
+  const waterLocal = WATER_LEVEL - ground
+  const home = fisher.position.clone()
+  const sunk = new Vector3(0.6, waterLocal - 1.2, 5.9)
+  const perch = home.clone().add(new Vector3(0, 0.45, 0.25)) // hissé hors de l'eau, avant de se rasseoir
+  const tentBase = new Vector3(0.75, waterLocal - 0.2, 6.1)
+  const tentHigh = tentBase.clone().add(new Vector3(0.2, 2.6, -0.3))
+  const tentacle = new Group()
+  tentacle.visible = false
+  group.add(tentacle)
+  const SEG = 20
+  const SKIN = [flatMat('#4a1630'), flatMat('#6e2546')] // anneaux alternés
+  const segs = Array.from({ length: SEG }, (_, i) => addMesh(tentacle, new IcosahedronGeometry(1, 0), SKIN[i % 2]))
+  const ctrl = new Vector3()
+  const tip = new Vector3()
+  const torso = new Vector3()
+  const a = new Vector3()
+  const b = new Vector3()
+  let eggT = -1 // temps écoulé depuis le double-clic, -1 : pas en cours
+  let eggRed = 0
+  const startEgg = () => {
+    if (eggT < 0) eggT = 0
+  }
+  // avance l'easter egg ; retourne true tant que le pêcheur est sous l'eau
+  const stepEgg = (t, dt) => {
+    if (eggT < 0) return false
+    eggT += dt
+    const e = eggT
+    const ph = (from, to) => smoothstep(clamp01((e - from) / (to - from)))
+    eggRed = e < 6 ? ph(0, 1) : 1 - ph(6, EGG_END)
+    // le pêcheur : secoué, tiré sous l'eau, puis il remonte et se rassoit
+    const pull = ph(2, 3.2)
+    if (e < 6) fisher.position.lerpVectors(home, sunk, pull)
+    else fisher.position.lerpVectors(sunk, perch, ph(6, 6.8)).lerp(home, ph(6.8, 7.4))
+    const shake = e > 1.7 && e < 3.2 ? 0.25 * Math.sin(e * 30) * (1 - pull) : 0
+    fisher.rotation.x = shake - 0.8 * pull * (1 - ph(6, 7.4))
+    const dropped = e > 1.8 && e < 7.4 // canne lâchée pendant l'aventure
+    rod.visible = line.visible = float.visible = !dropped
+    // la tentacule : sort de l'eau, vise le pêcheur, l'enlace et replonge avec lui
+    const grow = e < 2.6 ? ph(0.5, 1.7) : 1 - ph(2.6, 3.6)
+    tentacle.visible = grow > 0
+    if (tentacle.visible) {
+      torso.copy(fisher.position).y += 0.35
+      tip.lerpVectors(tentHigh, torso, ph(0.9, 1.7))
+      ctrl.copy(tentBase).y += 1.6
+      ctrl.x += 0.4 * Math.sin(t * 2.3)
+      for (let i = 0; i < SEG; i++) {
+        const u = (i / (SEG - 1)) * grow
+        // courbe de Bézier base → contrôle → bout, qui ondule
+        a.lerpVectors(tentBase, ctrl, u)
+        b.lerpVectors(ctrl, tip, u)
+        segs[i].position.lerpVectors(a, b, u)
+        segs[i].position.x += 0.08 * Math.sin(t * 5 + i * 0.7) * u
+        segs[i].scale.setScalar(0.28 * (1 - 0.75 * (i / (SEG - 1))))
+      }
+    }
+    if (e >= EGG_END) {
+      eggT = -1
+      eggRed = 0
+      fisher.position.copy(home)
+      fisher.rotation.x = 0
+      rod.visible = line.visible = float.visible = true
+    }
+    return e > 3.1 && e < 6.05
+  }
+
   // fumée qui sort de la cheminée, jour et nuit
   const smoke = buildSmoke()
   smoke.object.position.set(0.5, 2.15, -0.4)
@@ -1366,15 +1448,16 @@ function buildChalet(fisherReady) {
   const winterDecor = buildWinterDecor(group.rotation.y, ground)
   group.add(winterDecor.group)
   mergeStatic(fisher, [rod, line, float, fish.object, umbrella])
-  mergeStatic(group, [fisher, pumpkins.group, winterDecor.group, snowCap])
+  mergeStatic(group, [fisher, pumpkins.group, winterDecor.group, snowCap, tentacle])
 
   // k = 0 (jour) → 1 (nuit) ; léger vacillement, comme un feu dans la cheminée
   const update = (k, t, dt = 0) => {
     anglerPresence.step(dt)
+    const underwater = stepEgg(t, dt)
     const presence = angler.presence
     open = approach(open, wantUmbrella ? 1 : 0, dt, 0.8)
     // la nuit il est rentré ; sous l'orage il rapetisse… et rentre aussi
-    fisher.visible = k < NIGHT_SWITCH && presence > 0
+    fisher.visible = k < NIGHT_SWITCH && presence > 0 && !underwater
     fisher.scale.setScalar(FISHER_SCALE * presence)
     umbrella.visible = open > 0
     umbrella.scale.setScalar(open)
@@ -1416,7 +1499,7 @@ function buildChalet(fisherReady) {
     roofSnowMat.opacity = snow
     snowCap.visible = snow > 0
   }
-  return { group, update, fisher, setCrowd, setSeason }
+  return { group, update, fisher, setCrowd, setSeason, startEgg, eggRed: () => eggRed }
 }
 
 // Décor d'hiver du côté vu par la caméra (repère du chalet) : sapin de Noël
@@ -2246,6 +2329,25 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
     mouse.ty = (e.clientY / window.innerHeight) * 2 - 1
   }
   window.addEventListener('pointermove', onMove, { passive: true })
+  // easter egg : double-clic sur le pêcheur, en automne et de jour
+  const fisherAt = new Vector3()
+  let lastFisherClick = -Infinity
+  const onClick = (e) => {
+    if (!running || weatherState.season !== 'automne' || !chalet.fisher.visible) return
+    chalet.fisher.getWorldPosition(fisherAt)
+    fisherAt.y += 0.3 // vise le buste plutôt que les pieds
+    fisherAt.project(camera)
+    const rect = canvas.getBoundingClientRect()
+    const x = rect.left + ((fisherAt.x + 1) / 2) * rect.width
+    const y = rect.top + ((1 - fisherAt.y) / 2) * rect.height
+    if (Math.hypot(e.clientX - x, e.clientY - y) > 28) return
+    const now = performance.now()
+    if (now - lastFisherClick < 600) {
+      lastFisherClick = -Infinity
+      chalet.startEgg()
+    } else lastFisherClick = now
+  }
+  window.addEventListener('click', onClick)
 
   // ---------- boucle ----------
   let elapsed = 0
@@ -2326,6 +2428,7 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
       if (update && object.visible) update(nightK, elapsed, dt)
     }
 
+    lake.setRed(chalet.eggRed())
     renderer.render(scene, camera)
   }
 
@@ -2377,6 +2480,7 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
       renderer.setAnimationLoop(null)
       ro.disconnect()
       window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('click', onClick)
       disposeTree(scene)
       renderer.dispose()
       renderer.forceContextLoss() // rend aussi le contexte WebGL et le backbuffer du canvas
