@@ -96,6 +96,9 @@ export function createSeasonWeather({ storage, fetchCode, geolocation, now }) {
     }
     const code = await fetchCode(lat, lon)
     if (code == null) return // indisponible : on garde ce qu'on a (dégagé par défaut)
+    // entre-temps, le visiteur a pu passer en météo locale : réponse périmée
+    const current = coords.value ?? AUCH
+    if (current.lat !== lat || current.lon !== lon) return
     autoWeather.value = weatherFromCode(code)
     write(KEYS.auto, JSON.stringify({ code, lat, lon, at: t }))
   }
@@ -106,10 +109,9 @@ export function createSeasonWeather({ storage, fetchCode, geolocation, now }) {
       if (!geolocation?.getCurrentPosition) return resolve(null)
       geolocation.getCurrentPosition(resolve, () => resolve(null), { maximumAge: CACHE_MS, timeout: 10000 })
     })
-    if (!position) {
-      local.value = false
-      return
-    }
+    // refus, délai dépassé, pas d'API : rien ne change (Auch, ou la position
+    // locale déjà acceptée plus tôt dans la visite)
+    if (!position) return
     coords.value = { lat: roundCoord(position.coords.latitude), lon: roundCoord(position.coords.longitude) }
     local.value = true
     write(KEYS.coords, JSON.stringify(coords.value))

@@ -147,6 +147,34 @@ describe('météo locale (opt-in)', () => {
     expect(fetchCode).not.toHaveBeenCalled()
   })
 
+  it('acceptée puis échec au 2e clic → garde la position locale, sans état incohérent', async () => {
+    const storage = memStorage()
+    let answer = (ok) => ok({ coords: { latitude: -33.8688, longitude: 151.2093 } })
+    const geolocation = { getCurrentPosition: (ok, err) => answer(ok, err) }
+    const fetchCode = vi.fn().mockResolvedValue(61)
+    const sw = make({ storage, fetchCode, geolocation })
+    await sw.useLocalWeather()
+    answer = (ok, err) => err({ code: 3 }) // délai dépassé
+    await sw.useLocalWeather()
+    expect(sw.local.value).toBe(true)
+    expect(sw.effective.value).toEqual({ season: 'printemps', weather: 'pluie' })
+    await sw.refresh({ force: true })
+    expect(fetchCode).toHaveBeenLastCalledWith(-33.9, 151.2)
+  })
+
+  it("réponse d'Auch arrivée après la météo locale → ignorée", async () => {
+    let releaseAuch
+    const fetchCode = vi.fn((lat) =>
+      lat === 43.65 ? new Promise((r) => (releaseAuch = () => r(0))) : Promise.resolve(95)
+    )
+    const sw = make({ fetchCode, geolocation: geo({ latitude: 48.85, longitude: 2.35 }) })
+    const first = sw.refresh() // Auch, lent
+    await sw.useLocalWeather() // Paris, rapide
+    releaseAuch()
+    await first
+    expect(sw.autoWeather.value).toBe('orage')
+  })
+
   it('pas de géolocalisation disponible → local false', async () => {
     const sw = make({ geolocation: undefined })
     await expect(sw.useLocalWeather()).resolves.toBeUndefined()
