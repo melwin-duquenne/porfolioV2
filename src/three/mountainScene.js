@@ -49,7 +49,7 @@ import {
 } from './ambient.js'
 import { canvasTexture, flatMat } from './helpers.js'
 import { themeColor } from '../themeColors.js'
-import { WEATHER_LOOK, SKY_VEIL, approach } from '../seasonWeather.js'
+import { WEATHER_LOOK, SKY_VEIL, approach, crowd } from '../seasonWeather.js'
 
 function seeded(seed) {
   let s = seed
@@ -453,6 +453,15 @@ function buildHikers() {
     }
   }
   const n = hikers.length
+  // météo : tirage fixe de chacun (reste dehors si r < part voulue) et présence
+  // animée 0..1 (il rapetisse en s'enfonçant en partant) ; parapluie ouvert 0..1
+  for (const h of hikers) {
+    h.r = h.leader ? h.leader.r : rand() // un groupe part ou reste ensemble
+    h.presence = 1
+  }
+  let share = 1
+  let umbrellasWanted = false
+  let umbrella = 0
 
   const group = new Group()
   const part = (geo, count, color) => {
@@ -466,10 +475,17 @@ function buildHikers() {
   const torso = part(new BoxGeometry(0.13, 0.17, 0.08).translate(0, 0.265, 0), n, '#ffffff')
   const head = part(new IcosahedronGeometry(0.05, 0).translate(0, 0.4, 0), n, SKIN_COLOR)
   const pack = part(new BoxGeometry(0.12, 0.19, 0.07).translate(0, 0.29, -0.075), n, '#ffffff')
+  // parapluie : toile conique (Ø ≈ 0,42) tenue au-dessus de la tête, manche fin
+  const canopy = part(new ConeGeometry(0.21, 0.1, 8), n, '#ffffff')
+  const stick = part(new BoxGeometry(0.012, 0.3, 0.012), n, '#3a3a3a')
+  const UMBRELLAS = ['#2b2f6b', '#c8553d', '#e0b23c', '#2f8f6a', '#26292e', '#7a4fb0'].map((c) => new Color(c))
   for (let i = 0; i < n; i++) {
     torso.setColorAt(i, JACKETS[Math.floor(rand() * JACKETS.length)])
     pack.setColorAt(i, PACKS[Math.floor(rand() * PACKS.length)])
+    canopy.setColorAt(i, UMBRELLAS[Math.floor(rand() * UMBRELLAS.length)])
   }
+  const HIDDEN = new Matrix4().makeScale(0, 0, 0)
+  const umb = new Matrix4()
 
   const body = new Matrix4()
   const leg = new Matrix4()
@@ -511,9 +527,12 @@ function buildHikers() {
   }
 
   function update(dt) {
+    umbrella = approach(umbrella, umbrellasWanted ? 1 : 0, dt, 0.8)
     for (let i = 0; i < n; i++) {
       const h = hikers[i]
       const k = h.zone.scale
+      // chacun part (ou revient) à son rythme
+      h.presence = approach(h.presence, h.r < share ? 1 : 0, dt, 0.9 + h.r * 1.4)
       if (!h.leader) {
         // marche de point en point : chaque destination est choisie avec un
         // trajet en ligne droite entièrement praticable, donc jamais de blocage
@@ -547,9 +566,20 @@ function buildHikers() {
       const bob = Math.abs(Math.sin(h.phase)) * 0.02 * k
       e.set(0, h.heading, Math.sin(h.phase) * 0.05)
       q.setFromEuler(e)
-      p.set(h.x, sampleTerrain(h.x, h.z).h + bob, h.z)
-      s.setScalar(k)
+      const here = h.presence
+      p.set(h.x, sampleTerrain(h.x, h.z).h + bob - (1 - here) * 0.3 * k, h.z)
+      s.setScalar(k * here)
       body.compose(p, q, s)
+      // parapluie dans la main droite, toile au-dessus de la tête
+      if (umbrella > 0 && here > 0) {
+        umb.makeScale(umbrella, umbrella, umbrella).setPosition(0.07, 0.64, 0.02)
+        canopy.setMatrixAt(i, m.multiplyMatrices(body, umb))
+        umb.makeScale(1, umbrella, 1).setPosition(0.07, 0.48, 0.02)
+        stick.setMatrixAt(i, m.multiplyMatrices(body, umb))
+      } else {
+        canopy.setMatrixAt(i, HIDDEN)
+        stick.setMatrixAt(i, HIDDEN)
+      }
       torso.setMatrixAt(i, body)
       head.setMatrixAt(i, body)
       pack.setMatrixAt(i, body)
@@ -561,7 +591,17 @@ function buildHikers() {
     for (const mesh of group.children) mesh.instanceMatrix.needsUpdate = true
   }
 
-  return { group, update }
+  // part des randonneurs dehors (0..1) et parapluies ; `now` : sans transition
+  function setCrowd({ hikers: part, umbrellas }, now = false) {
+    share = part
+    umbrellasWanted = umbrellas
+    if (now) {
+      umbrella = umbrellas ? 1 : 0
+      for (const h of hikers) h.presence = h.r < share ? 1 : 0
+    }
+  }
+
+  return { group, update, setCrowd }
 }
 
 // Surface du lac : un disque plat, sans vrai reflet (trop coûteux : il faudrait
@@ -822,6 +862,19 @@ function buildChalet() {
   const float = addMesh(fisher, new IcosahedronGeometry(0.025, 0), flatMat('#d23a2a')) // bouchon
   const fish = buildFishJump({ water: waterY, z: HANDS.z + Math.cos(ROD_TILT) * ROD })
   fisher.add(fish.object)
+  // parapluie planté contre lui (les mains tiennent la canne), ouvert sous la pluie
+  const umbrella = new Group()
+  umbrella.position.set(0.09, 0, -0.06)
+  umbrella.rotation.z = -0.15
+  fisher.add(umbrella)
+  addMesh(umbrella, new BoxGeometry(0.01, 0.42, 0.01).translate(0, 0.21, 0), flatMat('#3a3a3a'))
+  addMesh(umbrella, new ConeGeometry(0.22, 0.1, 8), flatMat('#2b2f6b'), 0, 0.44, 0)
+  umbrella.visible = false
+  // présence (pluie : il reste, orage : il rentre) et ouverture du parapluie, 0..1
+  let presence = 1
+  let wantFisher = true
+  let open = 0
+  let wantUmbrella = false
   // fumée qui sort de la cheminée, jour et nuit
   const smoke = buildSmoke()
   smoke.object.position.set(0.5, 2.15, -0.4)
@@ -836,11 +889,18 @@ function buildChalet() {
 
   group.position.set(CHALET.x, ground, CHALET.z)
   group.rotation.y = Math.atan2(LAKE.x - CHALET.x, LAKE.z - CHALET.z) // face au lac
-  mergeStatic(fisher, [rod, line, float, fish.object])
+  mergeStatic(fisher, [rod, line, float, fish.object, umbrella])
   mergeStatic(group, [fisher])
 
   // k = 0 (jour) → 1 (nuit) ; léger vacillement, comme un feu dans la cheminée
-  const update = (k, t) => {
+  const update = (k, t, dt = 0) => {
+    presence = approach(presence, wantFisher ? 1 : 0, dt, 1.2)
+    open = approach(open, wantUmbrella ? 1 : 0, dt, 0.8)
+    // la nuit il est rentré ; sous l'orage il rapetisse… et rentre aussi
+    fisher.visible = k < NIGHT_SWITCH && presence > 0
+    fisher.scale.setScalar(FISHER_SCALE * presence)
+    umbrella.visible = open > 0
+    umbrella.scale.setScalar(open)
     if (fisher.visible) {
       // la canne monte et descend doucement, la ligne suit le bout de la canne
       const tilt = ROD_TILT + 0.04 * Math.sin(t * 1.3) + 0.015 * Math.sin(t * 3.7)
@@ -860,7 +920,16 @@ function buildChalet() {
     glow.material.opacity = k * flicker
     halos.visible = k > 0
   }
-  return { group, update, fisher }
+  // `now` : sans transition (scène arrêtée)
+  const setCrowd = ({ fisher: stays, umbrellas }, now = false) => {
+    wantFisher = stays
+    wantUmbrella = umbrellas
+    if (now) {
+      presence = stays ? 1 : 0
+      open = umbrellas ? 1 : 0
+    }
+  }
+  return { group, update, fisher, setCrowd }
 }
 
 // Soleil et lune : sprites peints sur un canvas, en haut à droite au-dessus des
@@ -1037,13 +1106,15 @@ function buildCamps() {
     campProps.add(smoke.object)
     fires.push({ outer, inner, light, halo, smoke, phase: rand() * 10 })
 
-    // tentes autour du feu, une arête tournée vers lui
+    // tentes autour du feu, une arête tournée vers lui ; `doors` : où l'on y entre
+    const doors = []
     for (let i = 0; i < c.tents; i++) {
       const a = (i / c.tents) * Math.PI * 2 + rand() * 0.6
       const x = Math.cos(a) * 1.7
       const z = Math.sin(a) * 1.7
       const tent = addMesh(campProps, tentGeo, TENTS[(i + CAMPS.indexOf(c)) % TENTS.length], x, -0.03, z)
       tent.rotation.y = Math.atan2(x, z)
+      doors.push({ x: Math.cos(a) * 1.25, z: Math.sin(a) * 1.25 })
       tents.push({ mesh: tent, yaw: tent.rotation.y, delay: i * CAMP.pitch.step + rand() * 0.2 })
     }
 
@@ -1055,7 +1126,14 @@ function buildCamps() {
       const camper = buildCamper(JACKETS[Math.floor(rand() * JACKETS.length)], PANTS, SKIN)
       camper.body.rotation.y = Math.atan2(-x, -z) // face au feu
       campProps.add(camper.body)
-      campers.push({ ...camper, camp, a, yaw: camper.body.rotation.y, delay: i * CAMP.arrive.step + rand() * 0.2 })
+      campers.push({
+        ...camper,
+        camp,
+        a,
+        yaw: camper.body.rotation.y,
+        delay: i * CAMP.arrive.step + rand() * 0.2,
+        door: doors[i % doors.length], // sa tente quand il pleut
+      })
     }
     mergeStatic(campProps, [outer, inner, ...tents.map((t) => t.mesh), ...campers.map((c) => c.body)])
   }
@@ -1077,8 +1155,8 @@ function buildCamps() {
   // s'éloigne jusqu'à s'effacer.
   const WALK = 0.8 // part de p consacrée à la marche
   const FAR = 4.2 // distance parcourue depuis sa place (× échelle du camp)
-  const placeCamper = ({ body, pose, fade, camp, a, yaw }, p, leaving) => {
-    body.visible = p > 0
+  const placeCamper = ({ body, pose, fade, camp, a, yaw, door }, p, leaving) => {
+    body.visible = p > 0 && shelter < 1
     if (!body.visible) return
     const w = clamp01(p / WALK)
     const walk = 1 - (1 - w) ** 2 // ralentit en arrivant
@@ -1096,7 +1174,25 @@ function buildCamps() {
     // demi-tour en se levant, pour partir de face
     const turn = leaving ? smoothstep(clamp01((WALK + 0.06 - p) / 0.12)) : 0
     body.rotation.y = yaw + Math.PI * turn
-    fade(smoothstep(clamp01(w / 0.3)))
+    let opacity = smoothstep(clamp01(w / 0.3))
+
+    // Pluie / orage : il se lève, marche jusqu'à sa tente et y entre (fondu) ;
+    // quand ça se calme, il en ressort et revient s'asseoir.
+    if (shelter > 0) {
+      const stand = clamp01(shelter / 0.2)
+      const go = smoothstep(clamp01((shelter - 0.2) / 0.65))
+      const fromX = body.position.x
+      const fromZ = body.position.z
+      const dx = door.x - fromX
+      const dz = door.z - fromZ
+      body.position.x = fromX + dx * go
+      body.position.z = fromZ + dz * go
+      pose(Math.hypot(dx, dz) * go * 9, sit * (1 - stand))
+      // face à la tente en y allant, face au feu en revenant
+      if (go > 0) body.rotation.y = Math.atan2(dx, dz) + (shelterTarget ? 0 : Math.PI)
+      opacity *= 1 - smoothstep(clamp01((shelter - 0.85) / 0.15))
+    }
+    fade(opacity)
   }
 
   // feu selon p : petite flamme qui hésite, puis prend avec un sursaut
@@ -1108,7 +1204,7 @@ function buildCamps() {
   const apply = (k, t, leaving) => {
     for (const tent of tents) pitchTent(tent, clamp01(phase(CAMP.pitch, tent.delay)))
     for (const c of campers) placeCamper(c, clamp01(phase(CAMP.arrive, c.delay)), leaving)
-    const g = fireLevel(clamp01(phase(CAMP.fire)))
+    const g = fireLevel(clamp01(phase(CAMP.fire))) * (1 - shelter) // pluie : feu éteint
     for (const f of fires) {
       const tt = t + f.phase
       const flicker = 1 + 0.12 * Math.sin(tt * 9.7) * Math.sin(tt * 3.3) + 0.05 * Math.sin(tt * 23.1)
@@ -1128,8 +1224,14 @@ function buildCamps() {
 
   // k = 0 (jour) → 1 (nuit) : passé NIGHT_SWITCH le camp s'installe, avant il se défait
   // (le foyer, lui, reste visible : seuls tentes, campeurs et flammes vont et viennent)
+  // abri sous les tentes (pluie, orage) : 0 = dehors autour du feu, 1 = à l'abri
+  let shelter = 0
+  let shelterTarget = 0
+  const SHELTER_TIME = 2.8
+
   const update = (k, t, dt) => {
     const night = k >= NIGHT_SWITCH
+    shelter = approach(shelter, shelterTarget, dt, SHELTER_TIME)
     if (!night && build <= 0) return // camp déjà défait : rien à faire de jour
     build = night ? Math.min(CAMP_DONE, build + dt) : Math.max(0, build - dt * CAMP.teardown)
     apply(k, t, !night)
@@ -1138,10 +1240,16 @@ function buildCamps() {
   // sans animation (scène arrêtée, chargement) : camp installé ou absent d'emblée
   const snap = (isNight) => {
     build = isNight ? CAMP_DONE : 0
+    shelter = shelterTarget
     apply(isNight ? 1 : 0, 0, false)
   }
+  // `on` : tout le monde à l'abri (feu éteint) ; `now` : sans transition
+  const setShelter = (on, now = false) => {
+    shelterTarget = on ? 1 : 0
+    if (now) shelter = shelterTarget
+  }
 
-  return { group, update, snap }
+  return { group, update, snap, setShelter }
 }
 
 // Laisse le navigateur respirer entre deux gros calculs : la construction de la
@@ -1240,11 +1348,14 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
   // est gérée ailleurs. `update(k, t, dt)` ne tourne que si l'objet est visible.
   const animated = [
     { object: hikers.group, when: 'day', update: (k, t, dt) => hikers.update(dt) },
-    { object: chalet.fisher, when: 'day' }, // animé par chalet.update
-    { object: birds.object, when: 'day', update: (k, t) => birds.update(t) },
-    // arrivent en chute libre au jour, plongent derrière les crêtes à la nuit
-    { object: paragliders.object, update: (k, t, dt) => paragliders.update(k < NIGHT_SWITCH, t, dt) },
-    { object: fireflies.object, when: 'night', update: fireflies.update },
+    // pêcheur : visibilité gérée par chalet.update (nuit, orage)
+    { object: birds.object, when: 'day', allow: () => crowdNow.birds, update: (k, t) => birds.update(t) },
+    // arrivent en chute libre au jour, repartent en vol plané à la nuit ou s'il pleut
+    {
+      object: paragliders.object,
+      update: (k, t, dt) => paragliders.update(k < NIGHT_SWITCH && crowdNow.paragliders, t, dt),
+    },
+    { object: fireflies.object, when: 'night', allow: () => crowdNow.fireflies, update: fireflies.update },
     { object: stars, update: shootingStar.update }, // fondu des étoiles : applyNight
     { object: lake.mesh, update: (k, t) => lake.update(t) },
     { object: chalet.group, update: chalet.update },
@@ -1286,6 +1397,7 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
   let wxTo = lookOf('degage')
   let wxP = 1
   let weatherState = { season: 'ete', weather: 'degage' }
+  let crowdNow = crowd('ete', 'degage') // qui est dehors avec cette météo
   const stepWeather = (dt) => {
     wxP = approach(wxP, 1, dt, WEATHER_DURATION)
     const e = smoothstep(wxP) // même allure que la transition CSS (ease-in-out)
@@ -1352,13 +1464,13 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
     applyLook()
     // objets de jour ↔ de nuit : la nuit, les randonneurs sont au camp
     const isNight = k >= NIGHT_SWITCH
-    for (const { object, when } of animated) {
-      if (when) object.visible = (when === 'night') === isNight
+    for (const { object, when, allow } of animated) {
+      if (when) object.visible = (when === 'night') === isNight && (allow?.() ?? true)
     }
     // scène arrêtée : pas d'animation d'installation, le camp est là ou pas
     if (!running) {
       camps.snap(isNight)
-      paragliders.snap(!isNight)
+      paragliders.snap(!isNight && crowdNow.paragliders)
     }
   }
   applyNight()
@@ -1478,6 +1590,10 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
     // météo effective ({ season, weather }) : transition si la scène tourne
     setWeather(next) {
       weatherState = next
+      crowdNow = crowd(next.season, next.weather)
+      hikers.setCrowd(crowdNow, !running)
+      chalet.setCrowd(crowdNow, !running)
+      camps.setShelter(!crowdNow.campFire, !running)
       copyLook(wxFrom, wx)
       wxTo = lookOf(next.weather)
       wxP = 0
