@@ -90,3 +90,51 @@ export function approach(current, target, dt, duration) {
   const step = dt / duration
   return current < target ? Math.min(target, current + step) : Math.max(target, current - step)
 }
+
+// ---------- rendu des saisons dans la 3D ----------
+// Aspect de chaque saison : `grass` teinte de l'herbe des prairies, `crowns`
+// palette des feuillus (chaque arbre y pioche selon son tirage), `blossom`
+// feuillage de l'arbre près du chalet ; quantités 0..1 : `flowers` fleurs des
+// prairies, `fallen` feuilles mortes au sol, `falling` feuilles qui tombent,
+// `pumpkins` citrouilles autour du chalet. La scène y glisse progressivement.
+const SUMMER = {
+  grass: '#6f9a68',
+  crowns: ['#3f7a45', '#4a8048', '#356c3e', '#5a8a4a'],
+  blossom: '#4f8a48',
+  flowers: 0,
+  fallen: 0,
+  falling: 0,
+  pumpkins: 0,
+}
+export const SEASON_LOOK = {
+  printemps: {
+    ...SUMMER,
+    grass: '#86b862',
+    crowns: ['#7fb35a', '#8cbf5f', '#6fa651', '#9ac76a'],
+    blossom: '#f3a9c4',
+    flowers: 1,
+  },
+  ete: SUMMER,
+  automne: {
+    grass: '#8f9a5a',
+    crowns: ['#e3b23c', '#d98a2b', '#c9622a', '#a8431f', '#d9a13a'], // jaune → roux
+    blossom: '#b8501f',
+    flowers: 0,
+    fallen: 1,
+    falling: 1,
+    pumpkins: 1,
+  },
+  hiver: SUMMER, // provisoire : l'hiver arrive à l'étape 4
+}
+
+// Couleur du feuillu de tirage `v` (∈ [0, 1[) pour cette saison
+export function crownColor(season, v) {
+  const { crowns } = SEASON_LOOK[season]
+  return crowns[Math.floor(v * crowns.length)]
+}
+
+// Progression (0..1) d'un élément de tirage `r` quand l'ensemble en est à
+// `amount` : les petits tirages partent d'abord, tous ont fini à amount = 1.
+export function stagger(amount, r, spread = 0.5) {
+  return Math.min(1, Math.max(0, (amount - r * spread) / (1 - spread)))
+}

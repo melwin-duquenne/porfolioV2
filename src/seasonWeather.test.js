@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   seasonFromDate, weatherFromCode, effectiveWeather, weatherLabel, roundCoord,
   crowd, approach, WEATHERS, WEATHER_LOOK, SKY_VEIL,
+  SEASONS, SEASON_LOOK, crownColor, stagger,
 } from './seasonWeather.js'
 
 describe('seasonFromDate', () => {
@@ -79,4 +80,30 @@ it('aspect et voile définis pour chaque météo', () => {
     expect(SKY_VEIL[w].day).toHaveLength(2)
     expect(SKY_VEIL[w].night).toHaveLength(2)
   }
+})
+
+describe('aspect des saisons', () => {
+  it('chaque saison est complète', () => {
+    for (const s of SEASONS) {
+      expect(Object.keys(SEASON_LOOK[s]).sort()).toEqual([
+        'blossom', 'crowns', 'fallen', 'falling', 'flowers', 'grass', 'pumpkins',
+      ])
+    }
+  })
+  it('couleur de houppier selon le tirage de l’arbre', () => {
+    expect(crownColor('automne', 0)).toBe('#e3b23c')
+    expect(crownColor('automne', 0.999)).toBe('#d9a13a')
+    expect(crownColor('ete', 0.3)).toBe('#4a8048')
+  })
+  it("hiver (en attendant l'étape 4) : ni fleurs ni citrouilles", () => {
+    expect(SEASON_LOOK.hiver.flowers).toBe(0)
+    expect(SEASON_LOOK.hiver.pumpkins).toBe(0)
+  })
+  it('stagger : pousse en vague, les petits tirages d’abord', () => {
+    expect(stagger(0, 0.3)).toBe(0)
+    expect(stagger(1, 0.99)).toBe(1)
+    expect(stagger(0.5, 0)).toBe(1)
+    expect(stagger(0.5, 1)).toBe(0)
+    expect(stagger(0.25, 0)).toBe(0.5)
+  })
 })
