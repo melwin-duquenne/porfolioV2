@@ -91,6 +91,9 @@ function ridged(noise, x, y) {
 
 const clamp01 = (v) => Math.min(1, Math.max(0, v))
 const smoothstep = (t) => t * t * (3 - 2 * t) // t dans [0, 1]
+const easeOutCubic = (t) => 1 - (1 - t) ** 3
+// dépasse un peu 1 avant de s'y poser (petit rebond)
+const easeOutBack = (t) => 1 + 2.2 * (t - 1) ** 3 + 1.2 * (t - 1) ** 2
 
 // palette alignée sur le thème "Brume"
 const GRASS = new Color('#6f9a68')
@@ -589,6 +592,16 @@ const SKIN_COLOR = '#e8c4a0'
 // Seuil de `night` lissé où la scène bascule : les objets de jour (randonneurs,
 // pêcheur) disparaissent et ceux de nuit (camps) apparaissent, scène déjà sombre.
 const NIGHT_SWITCH = 0.5
+// Installation d'un camp, en secondes depuis la tombée de la nuit : les campeurs
+// arrivent, montent les tentes puis allument le feu. Le matin, tout se défait
+// dans l'ordre inverse, un peu plus vite.
+const CAMP = {
+  arrive: { start: 0, step: 0.5, length: 3.4 }, // marche jusqu'au feu puis s'assoit
+  pitch: { start: 2.2, step: 0.8, length: 1.6 }, // une tente après l'autre
+  fire: { start: 4.6, length: 1.8 }, // flammes qui prennent
+  teardown: 1.4, // vitesse du démontage
+}
+const CAMP_DONE = 6.4 // tout est installé (dernier montage et feu terminés)
 
 function addMesh(parent, geo, material, x = 0, y = 0, z = 0) {
   const mesh = new Mesh(geo, material)
@@ -613,6 +626,48 @@ function buildSeatedPerson(jacket, pants, skin) {
   addMesh(person, SEATED.head, skin, 0, 0.23, 0.01)
   for (const side of [-1, 1]) addMesh(person, SEATED.thigh, pants, side * 0.035, 0, 0.075)
   return person
+}
+
+// Campeur articulé (origine aux hanches, regard vers +z) : il marche debout puis
+// s'assoit en pliant les genoux. Matériaux propres à chacun, transparents, pour
+// qu'il apparaisse et s'efface en fondu au loin.
+const CAMPER = {
+  thigh: new BoxGeometry(0.045, 0.12, 0.045).translate(0, -0.06, 0), // pivot à la hanche
+  shin: new BoxGeometry(0.045, 0.11, 0.045).translate(0, -0.055, 0), // pivot au genou
+  standing: 0.22, // hauteur des hanches debout
+  seated: 0.08, // et assis
+}
+function buildCamper(jacket, pants, skin) {
+  const mats = [jacket, pants, skin].map((m) => {
+    const c = m.clone()
+    c.transparent = true
+    return c
+  })
+  const [JACKET, PANTS, SKIN] = mats
+  const body = new Group()
+  const torso = addMesh(body, SEATED.torso, JACKET, 0, 0.09, 0)
+  addMesh(body, SEATED.head, SKIN, 0, 0.23, 0.01)
+  const legs = [-1, 1].map((side) => {
+    const thigh = addMesh(body, CAMPER.thigh, PANTS, side * 0.035, 0, 0)
+    const shin = addMesh(thigh, CAMPER.shin, PANTS, 0, -0.12, 0)
+    return { thigh, shin, side }
+  })
+  // stride : phase du pas ; sit : 0 debout → 1 assis
+  const pose = (stride, sit) => {
+    body.position.y = CAMPER.standing + (CAMPER.seated - CAMPER.standing) * sit
+    body.position.y += (1 - sit) * Math.abs(Math.sin(stride)) * 0.012 // léger rebond du pas
+    torso.rotation.x = 0.15 * sit
+    for (const { thigh, shin, side } of legs) {
+      const swing = Math.sin(stride) * side * 0.55 * (1 - sit)
+      const bend = Math.max(0, Math.sin(stride) * side) * 0.6 * (1 - sit)
+      thigh.rotation.x = swing - (Math.PI / 2) * sit // assis : cuisse à l'horizontale
+      shin.rotation.x = bend + (Math.PI / 2) * sit // et tibia à la verticale
+    }
+  }
+  const fade = (opacity) => {
+    for (const m of mats) m.opacity = opacity
+  }
+  return { body, pose, fade }
 }
 
 // Libère ce que porte `root` (géométries, matériaux, textures), une seule fois chacun.
@@ -793,6 +848,16 @@ function buildChalet() {
 // la parallaxe) et les montagnes passent devant grâce au test de profondeur.
 const SUN_OFFSET = new Vector3(82, 63, -328) // depuis la caméra
 
+// Course d'un astre sur un arc : p = 0 lever (sous les crêtes, à gauche),
+// 0.5 = position haute (SUN_OFFSET), 1 = coucher (sous les crêtes, à droite).
+// Les montagnes passent devant l'astre quand il descend derrière elles.
+const ARC_WIDTH = 120
+const ARC_DROP = 150
+function placeOnArc(sprite, p) {
+  const u = (p - 0.5) * 2 // -1 … 1
+  sprite.position.set(SUN_OFFSET.x + u * ARC_WIDTH, SUN_OFFSET.y - ARC_DROP * u * u, SUN_OFFSET.z)
+}
+
 // `paint` : dessin en plus du dégradé ; `additive` : lueur qui s'ajoute à la scène ;
 // `size` : résolution de la texture (petite pour les halos, petits à l'écran)
 function buildOrb(stops, scale, { paint, additive = false, size = 256 } = {}) {
@@ -880,8 +945,9 @@ function buildStars() {
   return new Points(geo, mat)
 }
 
-// Camps : tentes autour d'un feu, montés pour la nuit. Le jour, la prairie est
-// vide (les campeurs sont en balade) ; la nuit, tentes, feu et campeurs apparaissent.
+// Camps : tentes autour d'un feu, montés pour la nuit. Le jour, il ne reste que
+// le foyer éteint (pierres et bûches) ; la nuit, les campeurs reviennent, montent
+// les tentes et rallument le feu.
 function buildCamps() {
   const rand = seeded(2024)
   const group = new Group()
@@ -916,7 +982,8 @@ function buildCamps() {
   )
 
   const fires = []
-  const nightOnly = [] // tentes, foyer, flammes et campeurs de chaque camp
+  const tents = [] // montées / démontées une à une
+  const campers = [] // arrivent à pied et s'assoient autour du feu
 
   for (const c of CAMPS) {
     const camp = new Group()
@@ -925,30 +992,29 @@ function buildCamps() {
     group.add(camp)
     // la lumière du feu reste sur `camp` (intensité 0 le jour) : masquer une
     // lumière changerait leur nombre et recompilerait tous les shaders
-    const props = new Group()
-    camp.add(props)
-    nightOnly.push(props)
+    const campProps = new Group()
+    camp.add(campProps)
 
     // foyer : cercle de pierres + bûches croisées
     for (let i = 0; i < 7; i++) {
       const a = (i / 7) * Math.PI * 2
-      addMesh(props, stoneGeo, STONE, Math.cos(a) * 0.3, 0.02, Math.sin(a) * 0.3)
+      addMesh(campProps, stoneGeo, STONE, Math.cos(a) * 0.3, 0.02, Math.sin(a) * 0.3)
     }
     for (let i = 0; i < 3; i++) {
-      addMesh(props, logGeo, WOOD, 0, 0.04, 0).rotation.set(0.25, (i / 3) * Math.PI, 0)
+      addMesh(campProps, logGeo, WOOD, 0, 0.04, 0).rotation.set(0.25, (i / 3) * Math.PI, 0)
     }
-    const outer = addMesh(props, flameGeo, FLAME_OUT, 0, 0.03, 0)
-    const inner = addMesh(props, flameGeo, FLAME_IN, 0, 0.03, 0)
+    const outer = addMesh(campProps, flameGeo, FLAME_OUT, 0, 0.03, 0)
+    const inner = addMesh(campProps, flameGeo, FLAME_IN, 0, 0.03, 0)
     const light = new PointLight('#ff8a3d', 0, 8, 2)
     light.position.set(0, 0.5, 0)
     camp.add(light)
     const halo = glow.clone()
     halo.position.set(0, 0.35, 0)
-    props.add(halo)
+    campProps.add(halo)
     // fumée au-dessus des flammes (comme la cheminée du chalet)
     const smoke = buildSmoke({ nightColor: '#8a7a6a' }) // éclairée par les flammes
     smoke.object.position.set(0, 0.35, 0)
-    props.add(smoke.object)
+    campProps.add(smoke.object)
     fires.push({ outer, inner, light, halo, smoke, phase: rand() * 10 })
 
     // tentes autour du feu, une arête tournée vers lui
@@ -956,8 +1022,9 @@ function buildCamps() {
       const a = (i / c.tents) * Math.PI * 2 + rand() * 0.6
       const x = Math.cos(a) * 1.7
       const z = Math.sin(a) * 1.7
-      const tent = addMesh(props, tentGeo, TENTS[(i + CAMPS.indexOf(c)) % TENTS.length], x, -0.03, z)
+      const tent = addMesh(campProps, tentGeo, TENTS[(i + CAMPS.indexOf(c)) % TENTS.length], x, -0.03, z)
       tent.rotation.y = Math.atan2(x, z)
+      tents.push({ mesh: tent, yaw: tent.rotation.y, delay: i * CAMP.pitch.step + rand() * 0.2 })
     }
 
     // campeurs assis par terre en cercle, face au feu, entre les tentes
@@ -965,40 +1032,104 @@ function buildCamps() {
       const a = c.seats?.[i] ?? ((i + 0.5) / c.campers) * Math.PI * 2 + rand() * 0.4
       const x = Math.cos(a) * 0.85
       const z = Math.sin(a) * 0.85
-      const person = buildSeatedPerson(JACKETS[Math.floor(rand() * JACKETS.length)], PANTS, SKIN)
-      person.position.set(x, 0.08, z) // hanches au ras du sol
-      person.rotation.y = Math.atan2(-x, -z)
-      for (const side of [-1, 1]) addMesh(person, SEATED.shin, PANTS, side * 0.035, -0.03, 0.15)
-      props.add(person)
+      const camper = buildCamper(JACKETS[Math.floor(rand() * JACKETS.length)], PANTS, SKIN)
+      camper.body.rotation.y = Math.atan2(-x, -z) // face au feu
+      campProps.add(camper.body)
+      campers.push({ ...camper, camp, a, yaw: camper.body.rotation.y, delay: i * CAMP.arrive.step + rand() * 0.2 })
     }
-    mergeStatic(props, [outer, inner])
+    mergeStatic(campProps, [outer, inner, ...tents.map((t) => t.mesh), ...campers.map((c) => c.body)])
   }
 
-  // k = 0 (jour) → 1 (nuit) ; la visibilité des camps est gérée par la scène
-  const update = (k, t) => {
-    if (k < NIGHT_SWITCH) {
-      // camps masqués : seules les lumières des feux (gardées dans la scène) s'éteignent
-      for (const f of fires) f.light.intensity = 0
-      return
+  // Montage d'une tente selon son avancement p (0 = pliée, 1 = montée) : la toile
+  // se déplie au sol, puis le mât se dresse avec un léger rebond en la faisant
+  // pivoter jusqu'à sa place. Au démontage, le même geste se joue à l'envers.
+  const pitchTent = ({ mesh, yaw }, p) => {
+    mesh.visible = p > 0
+    if (!mesh.visible) return
+    const spread = 0.25 + 0.75 * easeOutCubic(clamp01(p / 0.4))
+    const rise = easeOutBack(clamp01((p - 0.2) / 0.8))
+    mesh.scale.set(spread, Math.max(rise, 0.03), spread)
+    mesh.rotation.y = yaw + (1 - easeOutCubic(p)) * 0.9
+  }
+
+  // Campeur selon p : il arrive à pied depuis le loin (en fondu), face au feu,
+  // puis s'assoit. En repartant (`leaving`), il se lève, fait demi-tour et
+  // s'éloigne jusqu'à s'effacer.
+  const WALK = 0.8 // part de p consacrée à la marche
+  const FAR = 4.2 // distance parcourue depuis sa place (× échelle du camp)
+  const placeCamper = ({ body, pose, fade, camp, a, yaw }, p, leaving) => {
+    body.visible = p > 0
+    if (!body.visible) return
+    const w = clamp01(p / WALK)
+    const walk = 1 - (1 - w) ** 2 // ralentit en arrivant
+    const r = 0.85 + (1 - walk) * FAR
+    const sit = smoothstep(clamp01((p - WALK) / (1 - WALK)))
+    pose(r * 9, sit) // le pas suit la distance : pas de patinage
+    body.position.x = Math.cos(a) * r
+    body.position.z = Math.sin(a) * r
+    // hors de la clairière aplanie, le sol monte ou descend : on le suit
+    if (r > CAMP_RADIUS) {
+      const { scale, position: o } = camp
+      const ground = sampleTerrain(o.x + body.position.x * scale.x, o.z + body.position.z * scale.x).h
+      body.position.y += (ground - o.y) / scale.x
     }
+    // demi-tour en se levant, pour partir de face
+    const turn = leaving ? smoothstep(clamp01((WALK + 0.06 - p) / 0.12)) : 0
+    body.rotation.y = yaw + Math.PI * turn
+    fade(smoothstep(clamp01(w / 0.3)))
+  }
+
+  // feu selon p : petite flamme qui hésite, puis prend avec un sursaut
+  const fireLevel = (p) => (p <= 0 ? 0 : easeOutBack(p))
+
+  const phase = ({ start, length }, delay = 0) => (build - start - delay) / length
+  let build = 0 // secondes d'installation écoulées, entre 0 et CAMP_DONE
+
+  const apply = (k, t, leaving) => {
+    for (const tent of tents) pitchTent(tent, clamp01(phase(CAMP.pitch, tent.delay)))
+    for (const c of campers) placeCamper(c, clamp01(phase(CAMP.arrive, c.delay)), leaving)
+    const g = fireLevel(clamp01(phase(CAMP.fire)))
     for (const f of fires) {
       const tt = t + f.phase
       const flicker = 1 + 0.12 * Math.sin(tt * 9.7) * Math.sin(tt * 3.3) + 0.05 * Math.sin(tt * 23.1)
-      f.outer.scale.set(0.17 * k, 0.5 * k * flicker, 0.17 * k)
-      f.inner.scale.set(0.1 * k, 0.32 * k * (2 - flicker), 0.1 * k)
+      const on = g > 0
+      f.outer.visible = f.inner.visible = f.halo.visible = on
+      f.smoke.object.visible = g > 0.3
+      f.light.intensity = 18 * k * g * flicker
+      if (!on) continue
+      f.outer.scale.set(0.17 * g, 0.5 * g * flicker, 0.17 * g)
+      f.inner.scale.set(0.1 * g, 0.32 * g * (2 - flicker), 0.1 * g)
       f.outer.rotation.y = tt * 1.3
       f.inner.rotation.y = -tt * 1.7
-      f.light.intensity = 18 * k * flicker
-      f.halo.material.opacity = k * (0.7 + 0.3 * flicker)
-      f.smoke.update(k, tt) // décalée dans le temps : pas synchro avec les autres fumées
+      f.halo.material.opacity = g * (0.7 + 0.3 * flicker)
+      if (g > 0.3) f.smoke.update(k, tt) // décalée dans le temps : pas synchro avec les autres fumées
     }
   }
 
-  return { group, update, nightOnly }
+  // k = 0 (jour) → 1 (nuit) : passé NIGHT_SWITCH le camp s'installe, avant il se défait
+  // (le foyer, lui, reste visible : seuls tentes, campeurs et flammes vont et viennent)
+  const update = (k, t, dt) => {
+    const night = k >= NIGHT_SWITCH
+    if (!night && build <= 0) return // camp déjà défait : rien à faire de jour
+    build = night ? Math.min(CAMP_DONE, build + dt) : Math.max(0, build - dt * CAMP.teardown)
+    apply(k, t, !night)
+  }
+
+  // sans animation (scène arrêtée, chargement) : camp installé ou absent d'emblée
+  const snap = (isNight) => {
+    build = isNight ? CAMP_DONE : 0
+    apply(isNight ? 1 : 0, 0, false)
+  }
+
+  return { group, update, snap }
 }
 
 // Laisse le navigateur respirer entre deux gros calculs : la construction de la
 // scène (≈ 200 ms) ne fige plus la page d'un seul bloc.
+// Durée de la bascule jour ↔ nuit (s) : le temps de voir le soleil se coucher et
+// la lune se lever. Le ciel CSS (--sky-1/2, style.css) suit la même durée.
+const NIGHT_DURATION = 2.4
+
 const yieldToBrowser = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 /**
@@ -1033,8 +1164,8 @@ export async function createMountainScene(canvas, { onSlow } = {}) {
   const sky = new Group()
   const sunDisc = buildSun()
   const moonDisc = buildMoon()
-  sunDisc.position.copy(SUN_OFFSET)
-  moonDisc.position.copy(SUN_OFFSET)
+  placeOnArc(sunDisc, 0.5)
+  placeOnArc(moonDisc, 0)
   const stars = buildStars()
   sky.add(stars, sunDisc, moonDisc)
   scene.add(sky)
@@ -1085,12 +1216,11 @@ export async function createMountainScene(canvas, { onSlow } = {}) {
     { object: chalet.fisher, when: 'day' }, // animé par chalet.update
     { object: birds.object, when: 'day', update: (k, t) => birds.update(t) },
     { object: paragliders.object, when: 'day', update: (k, t) => paragliders.update(t) },
-    ...camps.nightOnly.map((object) => ({ object, when: 'night' })),
     { object: fireflies.object, when: 'night', update: fireflies.update },
     { object: stars, update: shootingStar.update }, // fondu des étoiles : applyNight
     { object: lake.mesh, update: (k, t) => lake.update(t) },
     { object: chalet.group, update: chalet.update },
-    { object: camps.group, update: camps.update }, // éteint aussi les feux le jour
+    { object: camps.group, update: camps.update }, // installe / défait les camps
     { object: clouds.object, update: clouds.update },
   ]
 
@@ -1107,6 +1237,11 @@ export async function createMountainScene(canvas, { onSlow } = {}) {
   let night = 0
   let nightTarget = 0
   let running = false
+  // sens de la bascule en cours : vers la nuit, le soleil se couche à droite et la
+  // lune se lève à gauche ; vers le jour, la lune se couche et le soleil se lève.
+  // Fixé au départ d'une bascule : un retour en arrière à mi-course rejoue le même
+  // trajet à l'envers, sans saut.
+  let towardNight = true
 
   let nightK // `night` lissé, réutilisé par les animations du chalet et des camps
   const applyNight = () => {
@@ -1114,16 +1249,27 @@ export async function createMountainScene(canvas, { onSlow } = {}) {
     for (const [color, day, dark] of colors) color.copy(day).lerp(dark, k)
     hemi.intensity = 1.4 - 0.7 * k
     sun.intensity = 2.4 - 1.3 * k
-    sunDisc.material.opacity = 1 - k
-    moonDisc.material.opacity = k
+    // le soleil part d'abord, la lune arrive ensuite (elles se croisent à mi-course)
+    const sunGone = clamp01(k / 0.6)
+    const moonUp = clamp01((k - 0.4) / 0.6)
+    const sunP = towardNight ? 0.5 + 0.5 * sunGone : 0.5 - 0.5 * sunGone
+    const moonP = towardNight ? 0.5 * moonUp : 1 - 0.5 * moonUp
+    placeOnArc(sunDisc, sunP)
+    placeOnArc(moonDisc, moonP)
+    // fondu près de l'horizon, au cas où aucune crête ne le cache
+    sunDisc.material.opacity = 1 - sunGone ** 3
+    moonDisc.material.opacity = 1 - (1 - moonUp) ** 3
     stars.material.opacity = k
-    sunDisc.visible = k < 1
-    moonDisc.visible = stars.visible = k > 0
+    sunDisc.visible = sunGone < 1
+    moonDisc.visible = moonUp > 0
+    stars.visible = k > 0
     // objets de jour ↔ de nuit : la nuit, les randonneurs sont au camp
     const isNight = k >= NIGHT_SWITCH
     for (const { object, when } of animated) {
       if (when) object.visible = (when === 'night') === isNight
     }
+    // scène arrêtée : pas d'animation d'installation, le camp est là ou pas
+    if (!running) camps.snap(isNight)
   }
   applyNight()
 
@@ -1203,7 +1349,7 @@ export async function createMountainScene(canvas, { onSlow } = {}) {
     sky.position.copy(camera.position)
 
     if (night !== nightTarget) {
-      const step = dt / 0.9 // transition en ~1 s
+      const step = dt / NIGHT_DURATION
       night = night < nightTarget ? Math.min(nightTarget, night + step) : Math.max(nightTarget, night - step)
       applyNight()
     }
@@ -1227,6 +1373,7 @@ export async function createMountainScene(canvas, { onSlow } = {}) {
     },
     // transition animée si la scène tourne, sinon immédiate (hero hors écran)
     setNight(on) {
+      if (night === 0 || night === 1) towardNight = !!on
       nightTarget = on ? 1 : 0
       if (!running) {
         night = nightTarget

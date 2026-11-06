@@ -156,7 +156,10 @@ ul {
 :root.anim-on {
   transition-property: --bg, --bg-2, --panel, --panel-2, --ink, --muted, --faint, --line,
     --green, --green-2, --amber, --on-green, --sky-1, --sky-2, --media-bg;
-  transition-duration: 0.9s; /* ≈ la transition jour/nuit de la montagne 3D */
+  /* 0.9s pour la page ; le ciel (--sky-1, --sky-2) suit la bascule jour/nuit de la
+     montagne 3D (NIGHT_DURATION, 2.4s) : coucher de soleil et lever de lune */
+  transition-duration: 0.9s, 0.9s, 0.9s, 0.9s, 0.9s, 0.9s, 0.9s, 0.9s,
+    0.9s, 0.9s, 0.9s, 0.9s, 2.4s, 2.4s, 0.9s;
   transition-timing-function: ease;
 }
 
