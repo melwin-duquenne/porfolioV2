@@ -711,7 +711,11 @@ export function buildPrecipitation() {
       snowGeo.attributes.position.needsUpdate = true
     }
   }
-  return { object: group, update }
+  // sans transition (scène arrêtée, chargement) : directement pluie ou neige
+  const snap = (isSnow) => {
+    snowMix = isSnow ? 1 : 0
+  }
+  return { object: group, update, snap }
 }
 
 // ---------- éclairs (orage) ----------

@@ -2,7 +2,7 @@
   <section id="hero" ref="section" class="hero" :class="{ 'hero--3d': is3D }">
     <div class="hero__media">
       <!-- voile météo (et flash d'éclair) posé sur le ciel, seulement avec la 3D -->
-      <div class="hero__sky" :style="is3D ? skyVeil : null"></div>
+      <div class="hero__sky" :class="{ 'hero__sky--instant': veilInstant }" :style="is3D ? skyVeil : null"></div>
       <div ref="flashEl" class="hero__flash"></div>
       <div ref="photo" class="hero__photo"></div>
       <canvas ref="canvas3d" class="hero__canvas" aria-hidden="true"></canvas>
@@ -141,6 +141,13 @@ watch(isDark, (dark) => scene3d?.setNight(dark))
 // saison / météo (menu ou automatique) → scène, et voile du ciel CSS assorti
 const { effective } = useSeasonWeather()
 watch(effective, (next) => scene3d?.setWeather(next))
+// premier voile posé d'un coup, comme la scène (sinon le ciel s'assombrirait en 3 s
+// alors que le brouillard 3D est déjà à la bonne teinte) ; ensuite, transitions
+const veilInstant = ref(true)
+watch(is3D, (on) => {
+  if (!on) return (veilInstant.value = true)
+  requestAnimationFrame(() => requestAnimationFrame(() => (veilInstant.value = false)))
+})
 const skyVeil = computed(() => {
   const [color, alpha] = SKY_VEIL[effective.value.weather][isDark.value ? 'night' : 'day']
   return { '--wx-veil': color, '--wx-veil-a': alpha }

@@ -595,7 +595,8 @@ function buildHikers() {
   function setCrowd({ hikers: part, umbrellas }, now = false) {
     share = part
     umbrellasWanted = umbrellas
-    if (now) {
+    // hors de vue (la nuit, update ne tourne pas) : déjà en place au retour du jour
+    if (now || !group.visible) {
       umbrella = umbrellas ? 1 : 0
       for (const h of hikers) h.presence = h.r < share ? 1 : 0
     }
@@ -1598,6 +1599,7 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
       wxTo = lookOf(next.weather)
       wxP = 0
       if (!running) {
+        precipitation.snap(next.season === 'hiver')
         stepWeather(WEATHER_DURATION)
         applyNight()
         cloudBank.update(elapsed, wx.cover, wx.shade, nightK)

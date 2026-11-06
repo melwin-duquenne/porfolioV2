@@ -684,6 +684,9 @@ section {
   /* voile météo : même durée que WEATHER_DURATION (mountainScene.js) */
   transition: --wx-veil 3s ease-in-out, --wx-veil-a 3s ease-in-out;
 }
+.hero__sky--instant {
+  transition: none;
+}
 /* Flash d'éclair sur le ciel (opacité posée par la scène 3D, sans transition) */
 .hero__flash {
   position: absolute;
