@@ -50,7 +50,7 @@ import {
   buildShootingStar,
   buildSmoke,
 } from './ambient.js'
-import { canvasTexture, flatMat } from './helpers.js'
+import { HIDDEN, canvasTexture, clamp01, easeOutBack, easeOutCubic, flatMat, smoothstep } from './helpers.js'
 import { themeColor } from '../themeColors.js'
 import { WEATHER_LOOK, SKY_VEIL, SEASON_LOOK, approach, crowd, crownColor, stagger } from '../seasonWeather.js'
 
@@ -97,9 +97,6 @@ function ridged(noise, x, y) {
   return sum
 }
 
-const clamp01 = (v) => Math.min(1, Math.max(0, v))
-const smoothstep = (t) => t * t * (3 - 2 * t) // t dans [0, 1]
-
 // Mélange de couleurs comme le fait le CSS (en sRGB) : Three.js mélange en
 // linéaire, ce qui donnerait un brouillard plus clair que le voile du ciel.
 const rgbA = { r: 0, g: 0, b: 0 }
@@ -114,12 +111,10 @@ function mixSRGB(out, a, b, t) {
     SRGBColorSpace
   )
 }
-const easeOutCubic = (t) => 1 - (1 - t) ** 3
-// dépasse un peu 1 avant de s'y poser (petit rebond)
-const easeOutBack = (t) => 1 + 2.2 * (t - 1) ** 3 + 1.2 * (t - 1) ** 2
 
 // palette alignée sur le thème "Brume"
-const GRASS = new Color('#6f9a68')
+const GRASS = new Color('#6f9a68') // = SEASON_LOOK.ete.grass
+const GRASS_INV = new Color(1 / GRASS.r, 1 / GRASS.g, 1 / GRASS.b)
 const FOREST = new Color('#3f7650')
 const ROCK = new Color('#8a958a')
 const SNOW = new Color('#f5f7f1')
@@ -135,6 +130,25 @@ const WATER_LEVEL = 6.6
 const LAKE_FLOOR = WATER_LEVEL - 2.5
 // Chalet sur la rive gauche : replat juste au-dessus de l'eau, visible depuis la caméra
 const CHALET = { x: 7.8, z: 8.9 }
+// Position de repos de la caméra (elle dérive autour) : les décors s'y tournent
+const CAMERA_HOME = { x: 0, z: 78 }
+const faceCamera = (x, z) => Math.atan2(CAMERA_HOME.x - x, CAMERA_HOME.z - z)
+// Pose `obj` au sol en (lx, lz) du repère du chalet (tourné de `yaw`, sol du
+// chalet à `chaletGround`), face à la caméra ; caché jusqu'à ce qu'il pousse.
+function plantByChalet(obj, [lx, lz], yaw, chaletGround) {
+  const wx = CHALET.x + lx * Math.cos(yaw) + lz * Math.sin(yaw)
+  const wz = CHALET.z - lx * Math.sin(yaw) + lz * Math.cos(yaw)
+  obj.position.set(lx, sampleTerrain(wx, wz).h - chaletGround - 0.01, lz)
+  obj.rotation.y = faceCamera(wx, wz) - yaw
+  obj.visible = false
+}
+// Décor de saison qui pousse / s'en va en vague selon `amount` (cf. stagger)
+function growIn(obj, amount, r) {
+  const g = stagger(amount, r)
+  obj.visible = g > 0
+  obj.scale.setScalar(g)
+}
+
 // Arbre en fleurs (permanent, il ne fait que changer de couleur), à côté du chalet
 const BLOSSOM = { x: 5.4, z: 11 }
 const LEAF_GROUND = new Color('#c0702e') // tapis de feuilles mortes
@@ -560,7 +574,7 @@ function buildFlowers() {
     }
     mesh.instanceMatrix.needsUpdate = true
   }
-  return { mesh, update, count: spots.length }
+  return { mesh, update }
 }
 
 // Randonneurs : petits personnages (jambes, buste, tête, sac à dos) en
@@ -569,7 +583,6 @@ function buildHikers() {
   const rand = seeded(777)
   const SPEED = 0.35
   const GAP = 0.8 // écart entre membres d'un groupe (× échelle de la zone)
-  const SIDES = [-1, 1]
   const JACKETS = JACKET_COLORS.map((c) => new Color(c))
   const PACKS = ['#e08a3c', '#2f6d4a', '#3b3f46', '#b8452f'].map((c) => new Color(c))
 
@@ -648,13 +661,13 @@ function buildHikers() {
   // animée 0..1 (il rapetisse en s'enfonçant en partant) ; parapluie ouvert 0..1
   for (const h of hikers) {
     h.r = h.leader ? h.leader.r : rand() // un groupe part ou reste ensemble
-    h.presence = 1
   }
-  let share = 1
   let umbrellasWanted = false
   let umbrella = 0
 
   const group = new Group()
+  // chacun part (ou revient) à son rythme
+  const presence = crowdPresence(hikers, group, 'hikers', { share: 1, duration: (h) => 0.9 + h.r * 1.4 })
   const part = (geo, count, color) => {
     const mesh = new InstancedMesh(geo, new MeshLambertMaterial({ color }), count)
     mesh.frustumCulled = false // les instances bougent : la sphère englobante serait périmée
@@ -671,6 +684,7 @@ function buildHikers() {
   const stick = part(new BoxGeometry(0.012, 0.3, 0.012), n, '#3a3a3a')
   // bonnet à pompon (hiver), posé sur la tête ; taille selon `gear` (0..1)
   const hat = part(hatGeometry(), n, '#ffffff')
+  hat.visible = false
   const UMBRELLAS = ['#2b2f6b', '#c8553d', '#e0b23c', '#2f8f6a', '#26292e', '#7a4fb0'].map((c) => new Color(c))
   for (let i = 0; i < n; i++) {
     torso.setColorAt(i, JACKETS[Math.floor(rand() * JACKETS.length)])
@@ -680,7 +694,6 @@ function buildHikers() {
   }
   let gear = 0
   const hatAt = new Matrix4()
-  const HIDDEN = new Matrix4().makeScale(0, 0, 0)
   const umb = new Matrix4()
 
   const body = new Matrix4()
@@ -724,11 +737,10 @@ function buildHikers() {
 
   function update(dt) {
     umbrella = approach(umbrella, umbrellasWanted ? 1 : 0, dt, 0.8)
+    presence.step(dt)
     for (let i = 0; i < n; i++) {
       const h = hikers[i]
       const k = h.zone.scale
-      // chacun part (ou revient) à son rythme
-      h.presence = approach(h.presence, h.r < share ? 1 : 0, dt, 0.9 + h.r * 1.4)
       if (!h.leader) {
         // marche de point en point : chaque destination est choisie avec un
         // trajet en ligne droite entièrement praticable, donc jamais de blocage
@@ -779,10 +791,10 @@ function buildHikers() {
       torso.setMatrixAt(i, body)
       head.setMatrixAt(i, body)
       pack.setMatrixAt(i, body)
-      if (gear > 0) {
+      if (hat.visible) {
         hatAt.makeScale(gear, gear, gear).setPosition(0, HAT_Y, 0)
         hat.setMatrixAt(i, m.multiplyMatrices(body, hatAt))
-      } else hat.setMatrixAt(i, HIDDEN)
+      }
       for (const side of SIDES) {
         leg.makeRotationX(Math.sin(h.phase) * 0.5 * side).setPosition(side * 0.035, 0.18, 0)
         legs.setMatrixAt(i * 2 + (side > 0 ? 1 : 0), m.multiplyMatrices(body, leg))
@@ -792,21 +804,21 @@ function buildHikers() {
   }
 
   // part des randonneurs dehors (0..1) et parapluies ; `now` : sans transition
-  function setCrowd({ hikers: part, umbrellas }, now = false) {
-    share = part
-    umbrellasWanted = umbrellas
-    // hors de vue (la nuit, update ne tourne pas) : déjà en place au retour du jour
-    if (now || !group.visible) {
-      umbrella = umbrellas ? 1 : 0
-      for (const h of hikers) h.presence = h.r < share ? 1 : 0
-    }
+  function setCrowd(crowdNow, now = false) {
+    umbrellasWanted = crowdNow.umbrellas
+    presence.setCrowd(crowdNow, now)
+    if (now || !group.visible) umbrella = umbrellasWanted ? 1 : 0
   }
 
-  const setGear = (a) => (gear = a)
+  const setGear = (a) => {
+    gear = a
+    hat.visible = gear > 0 // hors hiver : pas de bonnet à dessiner
+  }
   return { group, update, setCrowd, setGear }
 }
 
 // ---------- gens de l'hiver ----------
+const SIDES = [-1, 1]
 const HATS = ['#c8553d', '#2b2f6b', '#e0b23c', '#2f8f6a', '#f4f1e8', '#7a4fb0'].map((c) => new Color(c))
 const HAT_Y = 0.43 // haut du crâne (tête : centre 0.4, rayon 0.05)
 // bonnet conique et son pompon, origine à la base du bonnet
@@ -841,7 +853,6 @@ function buildWinterPeople(n, seed, { skis = false } = {}) {
     torso.setColorAt(i, new Color(JACKETS[Math.floor(rand() * JACKETS.length)]))
     hat.setColorAt(i, HATS[Math.floor(rand() * HATS.length)])
   }
-  const HIDDEN = new Matrix4().makeScale(0, 0, 0)
   const upper = new Matrix4()
   const local = new Matrix4()
   const rot = new Matrix4()
@@ -852,7 +863,7 @@ function buildWinterPeople(n, seed, { skis = false } = {}) {
     torso.setMatrixAt(i, upper)
     head.setMatrixAt(i, upper)
     hat.setMatrixAt(i, m.multiplyMatrices(upper, local.makeTranslation(0, HAT_Y, 0)))
-    for (const side of [-1, 1]) {
+    for (const side of SIDES) {
       const j = i * 2 + (side > 0 ? 1 : 0)
       // jambe : pend de la hanche ; fléchie vers l'avant, ou écartée en poussant
       local.makeTranslation(side * 0.035, 0.18 - drop, 0)
@@ -870,7 +881,7 @@ function buildWinterPeople(n, seed, { skis = false } = {}) {
     torso.setMatrixAt(i, HIDDEN)
     head.setMatrixAt(i, HIDDEN)
     hat.setMatrixAt(i, HIDDEN)
-    for (const j of [i * 2, i * 2 + 1]) {
+    for (let j = i * 2; j < i * 2 + 2; j++) {
       legs.setMatrixAt(j, HIDDEN)
       skiMesh?.setMatrixAt(j, HIDDEN)
       poles?.setMatrixAt(j, HIDDEN)
@@ -879,23 +890,32 @@ function buildWinterPeople(n, seed, { skis = false } = {}) {
   const flush = () => {
     for (const mesh of group.children) mesh.instanceMatrix.needsUpdate = true
   }
-  return { group, place, hide, flush, rand }
+  // personne dehors (hors hiver) : pièces masquées, ni calcul ni appel de dessin
+  const show = (on) => {
+    for (const mesh of group.children) mesh.visible = on
+  }
+  return { group, place, hide, flush, show, rand }
 }
 
-// Présence animée commune (comme les randonneurs) : chacun a un tirage fixe `r`
-// et reste si r < part voulue, et seulement quand le décor est prêt (`ready` :
-// assez de neige, lac assez gelé). `now` ou groupe caché : sans transition.
-function winterCrowd(people, group, key, ready) {
-  let share = 0
+// Présence animée d'un groupe de personnages (randonneurs, skieurs, patineurs,
+// pêcheur) : chacun a un tirage fixe `r` et reste si r < part voulue
+// (`crowdNow[key]`, nombre ou booléen), et seulement quand le décor est prêt
+// (`ready` : assez de neige, lac gelé ou dégelé). Il part ou revient en
+// `duration(p)` s. `now` ou groupe caché (update ne tourne pas, ex. la nuit) :
+// sans transition, déjà en place au retour.
+function crowdPresence(people, group, key, { ready = () => true, duration = (p) => 1 + p.r, share = 0 } = {}) {
+  for (const p of people) p.presence = share > p.r ? 1 : 0
   const want = (p) => (p.r < share && ready() ? 1 : 0)
   const step = (dt) => {
-    for (const p of people) p.presence = approach(p.presence, want(p), dt, 1 + p.r)
+    for (const p of people) p.presence = approach(p.presence, want(p), dt, duration(p))
   }
+  // quelqu'un est-il dehors, ou en train d'arriver ?
+  const anyone = () => people.some((p) => p.presence > 0 || want(p) > 0)
   const setCrowd = (crowdNow, now = false) => {
-    share = crowdNow[key]
+    share = Number(crowdNow[key])
     if (now || !group.visible) for (const p of people) p.presence = want(p)
   }
-  return { step, setCrowd }
+  return { step, setCrowd, anyone }
 }
 
 // Skieurs : descendent en godille une pente enneigée derrière le lac, à droite,
@@ -911,9 +931,8 @@ function buildSkiers(ready) {
     u: i / N, // avancement sur la pente (0 en haut, 1 en bas)
     lane: (i - (N - 1) / 2) * 1.5,
     phase: P.rand() * 6,
-    presence: 0,
   }))
-  const crowdState = winterCrowd(skiers, P.group, 'skiers', ready)
+  const crowdState = crowdPresence(skiers, P.group, 'skiers', { ready })
   const len = SKI_SLOPE.zBottom - SKI_SLOPE.zTop
   const xAt = (s, u) => SKI_SLOPE.x + s.lane + 2.2 * Math.sin(u * Math.PI * 6 + s.phase)
   const B = new Matrix4()
@@ -923,6 +942,9 @@ function buildSkiers(ready) {
   const sc = new Vector3()
   const update = (dt) => {
     crowdState.step(dt)
+    const out = crowdState.anyone()
+    P.show(out)
+    if (!out) return
     for (let i = 0; i < N; i++) {
       const s = skiers[i]
       s.u = (s.u + (SPEED * dt) / len) % 1
@@ -962,9 +984,8 @@ function buildSkaters(ready) {
     dir: P.rand() < 0.5 ? -1 : 1,
     angle: P.rand() * Math.PI * 2,
     phase: P.rand() * 6,
-    presence: 0,
   }))
-  const crowdState = winterCrowd(skaters, P.group, 'skaters', ready)
+  const crowdState = crowdPresence(skaters, P.group, 'skaters', { ready })
   const B = new Matrix4()
   const q = new Quaternion()
   const e = new Euler()
@@ -972,6 +993,9 @@ function buildSkaters(ready) {
   const sc = new Vector3()
   const update = (dt) => {
     crowdState.step(dt)
+    const out = crowdState.anyone()
+    P.show(out)
+    if (!out) return
     for (let i = 0; i < N; i++) {
       const s = skaters[i]
       s.angle += (s.dir * SPEED * dt) / ((s.a + s.b) / 2)
@@ -1206,7 +1230,8 @@ function buildBlossomTree() {
   return { group, setColor }
 }
 
-function buildChalet() {
+// `fisherReady()` : le pêcheur peut sortir (lac pas gelé)
+function buildChalet(fisherReady) {
   const group = new Group()
   const WOOD = flatMat('#7a4e32')
   const DARK_WOOD = flatMat('#4b3022')
@@ -1308,9 +1333,10 @@ function buildChalet() {
   addMesh(umbrella, new BoxGeometry(0.01, 0.42, 0.01).translate(0, 0.21, 0), flatMat('#3a3a3a'))
   addMesh(umbrella, new ConeGeometry(0.22, 0.1, 8), flatMat('#2b2f6b'), 0, 0.44, 0)
   umbrella.visible = false
-  // présence (pluie : il reste, orage : il rentre) et ouverture du parapluie, 0..1
-  let presence = 1
-  let wantFisher = true
+  // présence (pluie : il reste ; orage ou lac gelé : il rentre) et ouverture du
+  // parapluie, 0..1
+  const angler = { r: 0 }
+  const anglerPresence = crowdPresence([angler], group, 'fisher', { ready: fisherReady, duration: () => 1.2, share: 1 })
   let open = 0
   let wantUmbrella = false
   // fumée qui sort de la cheminée, jour et nuit
@@ -1336,8 +1362,8 @@ function buildChalet() {
 
   // k = 0 (jour) → 1 (nuit) ; léger vacillement, comme un feu dans la cheminée
   const update = (k, t, dt = 0) => {
-    // lac gelé : il attend que la glace ait fondu pour revenir pêcher
-    presence = approach(presence, wantFisher && ice < 0.4 ? 1 : 0, dt, 1.2)
+    anglerPresence.step(dt)
+    const presence = angler.presence
     open = approach(open, wantUmbrella ? 1 : 0, dt, 0.8)
     // la nuit il est rentré ; sous l'orage il rapetisse… et rentre aussi
     fisher.visible = k < NIGHT_SWITCH && presence > 0
@@ -1362,27 +1388,23 @@ function buildChalet() {
     smoke.update(k, t, snow) // fumée plus épaisse l'hiver
     glow.material.opacity = k * flicker
     halos.visible = k > 0
-    pumpkins.update(k, t)
+    pumpkins.update(k, t, pumpkinAmount)
     winterDecor.update(k, t, decor)
   }
   // `now` : sans transition (scène arrêtée)
-  const setCrowd = ({ fisher: stays, umbrellas }, now = false) => {
-    wantFisher = stays
-    wantUmbrella = umbrellas
-    if (now) {
-      presence = stays && ice < 0.4 ? 1 : 0
-      open = umbrellas ? 1 : 0
-    }
+  const setCrowd = (crowdNow, now = false) => {
+    wantUmbrella = crowdNow.umbrellas
+    anglerPresence.setCrowd(crowdNow, now)
+    if (now) open = wantUmbrella ? 1 : 0
   }
   // aspect de saison : citrouilles, neige (toit, fumée), décor d'hiver
   let snow = 0
   let decor = 0
-  let ice = 0
+  let pumpkinAmount = 0
   const setSeason = (look) => {
-    pumpkins.setAmount(look.pumpkins)
+    pumpkinAmount = look.pumpkins
     snow = look.snow
     decor = look.decor
-    ice = look.ice
     roofSnowMat.opacity = snow
     snowCap.visible = snow > 0
   }
@@ -1396,15 +1418,8 @@ const XMAS_SPOT = [-1.6, -1.25]
 const SNOWMAN_SPOT = [-1.75, 0.15]
 function buildWinterDecor(yaw, chaletGround) {
   const group = new Group()
-  const cos = Math.cos(yaw)
-  const sin = Math.sin(yaw)
-  // posé sur le sol, tourné vers la caméra
-  const plant = (obj, [lx, lz]) => {
-    const wx = CHALET.x + lx * cos + lz * sin
-    const wz = CHALET.z - lx * sin + lz * cos
-    obj.position.set(lx, sampleTerrain(wx, wz).h - chaletGround - 0.01, lz)
-    obj.rotation.y = Math.atan2(0 - wx, 78 - wz) - yaw
-    obj.visible = false
+  const plant = (obj, spot) => {
+    plantByChalet(obj, spot, yaw, chaletGround)
     group.add(obj)
   }
 
@@ -1478,7 +1493,7 @@ function buildWinterDecor(yaw, chaletGround) {
   }
   addMesh(snowman, new CylinderGeometry(0.06, 0.066, 0.025, 8), flatMat('#c8392f'), 0, 0.31, 0) // écharpe
   addMesh(snowman, new ConeGeometry(0.012, 0.05, 5).rotateX(Math.PI / 2), flatMat('#e0782a'), 0, 0.36, 0.075) // carotte
-  for (const side of [-1, 1]) addMesh(snowman, new BoxGeometry(0.012, 0.012, 0.01), COAL, side * 0.022, 0.38, 0.05)
+  for (const side of SIDES) addMesh(snowman, new BoxGeometry(0.012, 0.012, 0.01), COAL, side * 0.022, 0.38, 0.05)
   for (const y of [0.22, 0.26]) addMesh(snowman, new BoxGeometry(0.012, 0.012, 0.01), COAL, 0, y, 0.073)
   mergeStatic(snowman)
   plant(snowman, SNOWMAN_SPOT)
@@ -1488,11 +1503,7 @@ function buildWinterDecor(yaw, chaletGround) {
     { obj: snowman, r: 0.6 },
   ]
   const update = (k, t, amount) => {
-    for (const { obj, r } of items) {
-      const g = stagger(amount, r)
-      obj.visible = g > 0
-      obj.scale.setScalar(g)
-    }
+    for (const { obj, r } of items) growIn(obj, amount, r)
     if (!tree.visible) return
     // guirlande : faible le jour, bien allumée la nuit, qui scintille doucement
     const twinkle = 0.85 + 0.15 * Math.sin(t * 3.1) * Math.sin(t * 1.3)
@@ -1531,12 +1542,11 @@ function buildIgloo() {
   mergeStatic(inner)
   group.add(inner)
   group.position.set(IGLOO.x, sampleTerrain(IGLOO.x, IGLOO.z).h - 0.02, IGLOO.z)
-  group.rotation.y = Math.atan2(0 - IGLOO.x, 78 - IGLOO.z)
+  group.rotation.y = faceCamera(IGLOO.x, IGLOO.z)
   group.visible = false
   const update = (k, amount) => {
-    const g = stagger(amount, 0.3)
-    group.visible = g > 0
-    group.scale.setScalar(g)
+    growIn(group, amount, 0.3)
+    if (!group.visible) return
     DOOR.emissiveIntensity = 1.5 * k
     halo.material.opacity = 0.9 * k
     halo.visible = k > 0
@@ -1570,41 +1580,31 @@ function buildPumpkins(yaw, chaletGround) {
     0.45,
     { additive: true, size: 64 }
   )
-  const cos = Math.cos(yaw)
-  const sin = Math.sin(yaw)
-  const items = PUMPKIN_SPOTS.map(([lx, lz], i) => {
+  const lights = []
+  const items = PUMPKIN_SPOTS.map((spot, i) => {
     const pumpkin = new Group()
-    const wx = CHALET.x + lx * cos + lz * sin
-    const wz = CHALET.z - lx * sin + lz * cos
-    pumpkin.position.set(lx, sampleTerrain(wx, wz).h - chaletGround - 0.01, lz)
-    // visage vers la caméra (côté +z du monde, x ≈ 0)
-    pumpkin.rotation.y = Math.atan2(0 - wx, 78 - wz) - yaw
     addMesh(pumpkin, body, BODY)
     addMesh(pumpkin, new BoxGeometry(0.014, 0.03, 0.014), STEM, 0, 0.13, 0)
-    for (const side of [-1, 1]) addMesh(pumpkin, new BoxGeometry(0.018, 0.016, 0.01), FACE, side * 0.024, 0.075, 0.071)
+    for (const side of SIDES) addMesh(pumpkin, new BoxGeometry(0.018, 0.016, 0.01), FACE, side * 0.024, 0.075, 0.071)
     addMesh(pumpkin, new BoxGeometry(0.05, 0.012, 0.01), FACE, 0, 0.045, 0.073)
+    mergeStatic(pumpkin) // corps, tige, visage : 3 appels de dessin au lieu de 5
     const light = halo.clone() // même matériau : une seule opacité à piloter
     light.position.set(0, 0.07, 0.1)
     pumpkin.add(light)
-    pumpkin.visible = false
+    lights.push(light)
+    plantByChalet(pumpkin, spot, yaw, chaletGround) // visage vers la caméra
     group.add(pumpkin)
     return { pumpkin, r: (i * 0.37) % 1 }
   })
-  let amount = 0
-  let want = 0
-  const setAmount = (a) => (want = a)
-  const update = (k, t) => {
-    amount = want
+  const update = (k, t, amount) => {
+    for (const { pumpkin, r } of items) growIn(pumpkin, amount, r)
+    if (!amount) return
     const flicker = 1 + 0.08 * Math.sin(t * 6.1) * Math.sin(t * 2.3)
     FACE.emissiveIntensity = 1.8 * k * flicker
     halo.material.opacity = 0.9 * k * flicker
-    for (const { pumpkin, r } of items) {
-      const g = stagger(amount, r)
-      pumpkin.visible = g > 0
-      pumpkin.scale.setScalar(g)
-    }
+    for (const light of lights) light.visible = k > 0 // pas de halo à dessiner le jour
   }
-  return { group, update, setAmount }
+  return { group, update }
 }
 
 // Soleil et lune : sprites peints sur un canvas, en haut à droite au-dessus des
@@ -2009,7 +2009,7 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
   scene.add(ice.mesh)
   const igloo = buildIgloo()
   scene.add(igloo.group)
-  const chalet = buildChalet()
+  const chalet = buildChalet(() => ss.ice < 0.4) // lac dégelé : le pêcheur revient
   scene.add(chalet.group)
   const blossom = buildBlossomTree()
   scene.add(blossom.group)
@@ -2061,7 +2061,6 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
     { object: chalet.group, update: chalet.update },
     { object: camps.group, update: camps.update }, // installe / défait les camps
     { object: clouds.object, update: (k, t) => clouds.update(k, t, wx.shade) },
-    { object: cloudBank.object, update: null }, // mis à jour à chaque image (cf. tick)
   ]
 
   // ---------- jour / nuit ----------
@@ -2084,8 +2083,9 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
     const [nightC, nightA] = SKY_VEIL[weather].night
     return { ...WEATHER_LOOK[weather], day: new Color(dayC), night: new Color(nightC), dayA, nightA }
   }
+  const WEATHER_KEYS = Object.keys(WEATHER_LOOK.degage)
   const copyLook = (out, src) => {
-    for (const key of Object.keys(WEATHER_LOOK.degage)) out[key] = src[key]
+    for (const key of WEATHER_KEYS) out[key] = src[key]
     out.day.copy(src.day)
     out.night.copy(src.night)
     out.dayA = src.dayA
@@ -2101,7 +2101,7 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
   const stepWeather = (dt) => {
     wxP = approach(wxP, 1, dt, WEATHER_DURATION)
     const e = smoothstep(wxP) // même allure que la transition CSS (ease-in-out)
-    for (const key of Object.keys(WEATHER_LOOK.degage)) wx[key] = wxFrom[key] + (wxTo[key] - wxFrom[key]) * e
+    for (const key of WEATHER_KEYS) wx[key] = wxFrom[key] + (wxTo[key] - wxFrom[key]) * e
     wx.day.copy(wxFrom.day).lerp(wxTo.day, e)
     wx.night.copy(wxFrom.night).lerp(wxTo.night, e)
     wx.dayA = wxFrom.dayA + (wxTo.dayA - wxFrom.dayA) * e
@@ -2126,12 +2126,10 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
   const ssFrom = seasonOf('ete')
   let ssTo = seasonOf('ete')
   let ssP = 1
-  let seasonNow = 'ete'
   const terrainSeason = terrain.userData.season
-  const GRASS_LINEAR = GRASS.clone()
   const applySeason = () => {
     const g = terrainSeason.uGrass.value
-    g.setRGB(ss.grass.r / GRASS_LINEAR.r, ss.grass.g / GRASS_LINEAR.g, ss.grass.b / GRASS_LINEAR.b)
+    g.copy(ss.grass).multiply(GRASS_INV) // rapport à l'herbe de base, par canal
     terrainSeason.uFallen.value = ss.fallen
     blossom.setColor(ss.blossom)
     flowers.update(ss.flowers)
@@ -2289,16 +2287,15 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
 
     // dérive lente + parallax souris + léger survol au scroll
     camera.position.set(
-      Math.sin(elapsed * 0.06) * 10 + mouse.x * 8,
+      CAMERA_HOME.x + Math.sin(elapsed * 0.06) * 10 + mouse.x * 8,
       18 - mouse.y * 3 + scroll * 14,
-      78 + Math.sin(elapsed * 0.04) * 6 - scroll * 20
+      CAMERA_HOME.z + Math.sin(elapsed * 0.04) * 6 - scroll * 20
     )
     camera.lookAt(mouse.x * 6, 14 - scroll * 4, -60)
     sky.position.copy(camera.position)
 
     if (night !== nightTarget) {
-      const step = dt / NIGHT_DURATION
-      night = night < nightTarget ? Math.min(nightTarget, night + step) : Math.max(nightTarget, night - step)
+      night = approach(night, nightTarget, dt, NIGHT_DURATION)
       applyNight()
     }
     if (ssP < 1) stepSeason(dt)
@@ -2335,11 +2332,9 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
       running = false
       renderer.setAnimationLoop(null)
     },
-    // transition animée si la scène tourne, sinon immédiate (hero hors écran)
     // météo effective ({ season, weather }) : transition si la scène tourne
     setWeather(next) {
-      if (next.season !== seasonNow) {
-        seasonNow = next.season
+      if (next.season !== weatherState.season) {
         copySeason(ssFrom, ss)
         ssTo = seasonOf(next.season)
         forest.target(next.season) // repart des couleurs affichées

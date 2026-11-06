@@ -1,6 +1,6 @@
 // Petits outils partagés par mountainScene.js et ambient.js (module à part : un
 // import direct entre ces deux fichiers serait circulaire).
-import { CanvasTexture, MeshLambertMaterial, SRGBColorSpace } from 'three'
+import { CanvasTexture, Matrix4, MeshLambertMaterial, SRGBColorSpace } from 'three'
 
 // Texture peinte sur un canvas 2D : paint(ctx, width, height)
 export function canvasTexture(width, height, paint) {
@@ -28,3 +28,11 @@ export function softBlob(ctx, x, y, r, alpha, core = 0) {
 // Matériau mat à facettes, le style low-poly de tous les petits objets
 export const flatMat = (color, emissive = '#000000') =>
   new MeshLambertMaterial({ color, emissive, flatShading: true })
+
+export const clamp01 = (v) => Math.min(1, Math.max(0, v))
+export const smoothstep = (t) => t * t * (3 - 2 * t) // t dans [0, 1]
+export const easeOutCubic = (t) => 1 - (1 - t) ** 3
+// dépasse un peu 1 avant de s'y poser (petit rebond)
+export const easeOutBack = (t) => 1 + 2.2 * (t - 1) ** 3 + 1.2 * (t - 1) ** 2
+// matrice d'une instance cachée (échelle nulle) ; ne jamais la modifier
+export const HIDDEN = new Matrix4().makeScale(0, 0, 0)

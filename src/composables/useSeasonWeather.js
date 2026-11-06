@@ -57,7 +57,7 @@ export function createSeasonWeather({ storage, fetchCode, geolocation, now }) {
   const manualSeason = ref(valid(SEASONS, read(KEYS.season)))
   const manualWeather = ref(valid(WEATHERS, read(KEYS.weather)))
   const coords = ref(readJSON(KEYS.coords)) // position locale arrondie, ou null (Auch)
-  const local = ref(coords.value != null)
+  const local = computed(() => coords.value != null)
   const autoWeather = ref('degage')
 
   const autoSeason = () => seasonFromDate(now(), local.value && coords.value.lat < 0)
@@ -113,7 +113,6 @@ export function createSeasonWeather({ storage, fetchCode, geolocation, now }) {
     // locale déjà acceptée plus tôt dans la visite)
     if (!position) return
     coords.value = { lat: roundCoord(position.coords.latitude), lon: roundCoord(position.coords.longitude) }
-    local.value = true
     write(KEYS.coords, JSON.stringify(coords.value))
     await refresh({ force: true })
   }

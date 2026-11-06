@@ -25,10 +25,9 @@ import {
   SpriteMaterial,
   Vector3,
 } from 'three'
-import { canvasTexture, flatMat, softBlob } from './helpers.js'
+import { HIDDEN, canvasTexture, clamp01, easeOutBack, flatMat, softBlob } from './helpers.js'
+import { approach } from '../seasonWeather.js'
 
-// dépasse un peu 1 avant de s'y poser (petit rebond)
-const easeOutBack = (t) => 1 + 2.2 * (t - 1) ** 3 + 1.2 * (t - 1) ** 2
 
 // Événement qui revient à intervalle aléatoire (étoile filante, poisson…).
 // `fired(t)` est vrai à l'instant du déclenchement ; `since(t)` donne les secondes
@@ -346,7 +345,6 @@ export function buildParagliders(thermals, colors) {
   const s = new Vector3(1, 1, 1)
   const ws = new Vector3()
   const e = new Euler()
-  const HIDDEN = new Matrix4().makeScale(0, 0, 0)
   const orbitYaw = (g, a) => Math.atan2(-Math.sin(a) * g.dir, Math.cos(a) * g.dir)
   const orbitPos = (g, t, out) => {
     const a = g.phase + t * g.speed * g.dir
@@ -420,7 +418,7 @@ export function buildParagliders(thermals, colors) {
         bank = g.dir * 0.3
       }
       // en s'éloignant de nuit, la voile s'assombrit jusqu'à la couleur du ciel
-      const fade = leaving ? Math.min(1, Math.max(0, (g.time / LEAVE.time - 0.2) / 0.75)) : 0
+      const fade = leaving ? clamp01((g.time / LEAVE.time - 0.2) / 0.75) : 0
       wings.setColorAt(i, tint.copy(g.color).lerp(NIGHT_SKY, fade))
       e.set(0, yaw, bank, 'YXZ')
       q.setFromEuler(e)
@@ -678,9 +676,14 @@ export function buildPrecipitation() {
     }
   }
 
+  const uploadFirst = (attr, count) => {
+    attr.clearUpdateRanges()
+    attr.addUpdateRange(0, count)
+    attr.needsUpdate = true
+  }
   const update = (dt, amount, isSnow) => {
     t += dt
-    snowMix = Math.min(1, Math.max(0, snowMix + (isSnow ? dt : -dt) / 2))
+    snowMix = approach(snowMix, isSnow ? 1 : 0, dt, 2)
     const nRain = Math.floor(RAIN * amount * (1 - snowMix))
     const nSnow = Math.floor(SNOW * amount * snowMix)
     rain.visible = nRain > 0
@@ -701,7 +704,7 @@ export function buildPrecipitation() {
         rainPos[k + 5] = drops[j + 2]
       }
       rainGeo.setDrawRange(0, nRain * 2)
-      rainGeo.attributes.position.needsUpdate = true
+      uploadFirst(rainGeo.attributes.position, nRain * 6) // seulement les gouttes dessinées
     }
     if (snow.visible) {
       for (let i = 0; i < nSnow; i++) {
@@ -713,7 +716,7 @@ export function buildPrecipitation() {
         snowPos[j + 2] = flakes[j + 2] + Math.cos(t * 0.6 + sway[i]) * 0.4
       }
       snowGeo.setDrawRange(0, nSnow)
-      snowGeo.attributes.position.needsUpdate = true
+      uploadFirst(snowGeo.attributes.position, nSnow * 3)
     }
   }
   // sans transition (scène arrêtée, chargement) : directement pluie ou neige
@@ -832,6 +835,8 @@ export function buildFallingLeaves(colors) {
   // k : 0 (jour) → 1 (nuit), les feuilles s'assombrissent
   const update = (dt, amount, k = 0) => {
     t += dt
+    // hors automne, plus aucune feuille en l'air : rien à calculer ni à envoyer
+    if (!amount && !mesh.visible) return
     mat.color.setScalar(1 - 0.8 * k)
     let active = 0
     for (let i = 0; i < COUNT; i++) {
@@ -852,7 +857,11 @@ export function buildFallingLeaves(colors) {
           size = 0
         }
       }
-      if (size > 0) active++
+      if (size <= 0) {
+        mesh.setMatrixAt(i, HIDDEN)
+        continue
+      }
+      active++
       e.set(t * l.spin + l.phase, l.phase, Math.sin(t * l.spin * 0.7) * 1.2)
       p.set(l.x, l.y, l.z)
       m.compose(p, q.setFromEuler(e), sc.set(size, size, size))

@@ -1,8 +1,8 @@
 <template>
-  <section id="hero" ref="section" class="hero" :class="{ 'hero--3d': is3D }">
+  <section id="hero" ref="section" class="hero" :class="{ 'hero--3d': scene3dActive }">
     <div class="hero__media">
       <!-- voile météo (et flash d'éclair) posé sur le ciel, seulement avec la 3D -->
-      <div class="hero__sky" :class="{ 'hero__sky--instant': veilInstant }" :style="is3D ? skyVeil : null"></div>
+      <div class="hero__sky" :class="{ 'hero__sky--instant': veilInstant }" :style="scene3dActive ? skyVeil : null"></div>
       <div ref="flashEl" class="hero__flash"></div>
       <div ref="photo" class="hero__photo"></div>
       <canvas ref="canvas3d" class="hero__canvas" aria-hidden="true"></canvas>
@@ -61,14 +61,13 @@ const sub = ref(null)
 const cta = ref(null)
 
 // parallax de la couche photo (souris + scroll) — inutile quand la 3D la remplace
-useParallax(section, photo, { depth: 0.16, enabled: () => !is3D.value })
+useParallax(section, photo, { depth: 0.16, enabled: () => !scene3dActive.value })
 
 // ---------- montagne 3D (Three.js) ----------
 // La photo reste le rendu par défaut : la 3D n'est chargée qu'après le premier
 // affichage, et seulement sur desktop correct. Mobile / PC faible gardent la photo.
 const canvas3d = ref(null)
 const flashEl = ref(null)
-const is3D = ref(false)
 let scene3d = null
 let io = null
 let unmounted = false
@@ -101,7 +100,7 @@ function canUse3D() {
 }
 
 function teardown3D() {
-  is3D.value = scene3dActive.value = false
+  scene3dActive.value = false
   io?.disconnect()
   io = null
   scene3d?.dispose()
@@ -131,7 +130,7 @@ async function init3D() {
     else scene3d?.stop()
   })
   io.observe(section.value)
-  is3D.value = scene3dActive.value = true
+  scene3dActive.value = true
 }
 
 // mode nuit de la montagne, calé sur le thème du site
@@ -144,7 +143,7 @@ watch(effective, (next) => scene3d?.setWeather(next))
 // premier voile posé d'un coup, comme la scène (sinon le ciel s'assombrirait en 3 s
 // alors que le brouillard 3D est déjà à la bonne teinte) ; ensuite, transitions
 const veilInstant = ref(true)
-watch(is3D, (on) => {
+watch(scene3dActive, (on) => {
   if (!on) return (veilInstant.value = true)
   requestAnimationFrame(() => requestAnimationFrame(() => (veilInstant.value = false)))
 })
