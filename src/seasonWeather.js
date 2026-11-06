@@ -67,22 +67,39 @@ export const SKY_VEIL = {
 // Qui est dehors selon la météo (déjà effective : pas d'orage en hiver).
 // `hikers` : part des randonneurs encore en balade ; `campFire` : le soir, feu
 // et campeurs dehors (sinon tous à l'abri dans les tentes, feu éteint).
+// `skiers` / `skaters` : part des skieurs et des patineurs (l'hiver seulement).
 export function crowd(season, weather) {
+  const winter = season === 'hiver'
   if (weather === 'orage') {
-    return { hikers: 0, umbrellas: false, paragliders: false, birds: false, fireflies: false, fisher: false, campFire: false }
+    return {
+      hikers: 0, umbrellas: false, paragliders: false, birds: false, fireflies: false, fisher: false, campFire: false,
+      skiers: 0, skaters: 0,
+    }
   }
   if (weather === 'pluie') {
     return {
       hikers: 0.35,
-      umbrellas: season !== 'hiver', // la neige, on la prend sans parapluie
+      umbrellas: !winter, // la neige, on la prend sans parapluie
       paragliders: false,
       birds: false,
       fireflies: false,
-      fisher: true,
+      fisher: !winter, // lac gelé : plus de pêcheur
       campFire: false,
+      skiers: winter ? 0.5 : 0, // quelques skieurs continuent sous la neige
+      skaters: winter ? 0.5 : 0,
     }
   }
-  return { hikers: 1, umbrellas: false, paragliders: true, birds: true, fireflies: true, fisher: true, campFire: true }
+  return {
+    hikers: 1,
+    umbrellas: false,
+    paragliders: !winter, // l'hiver, des skieurs à la place
+    birds: true,
+    fireflies: !winter,
+    fisher: !winter,
+    campFire: true,
+    skiers: winter ? 1 : 0,
+    skaters: winter ? 1 : 0,
+  }
 }
 
 // Rapproche `current` de `target` d'un pas de dt / duration, sans dépasser
@@ -96,7 +113,9 @@ export function approach(current, target, dt, duration) {
 // palette des feuillus (chaque arbre y pioche selon son tirage), `blossom`
 // feuillage de l'arbre près du chalet ; quantités 0..1 : `flowers` fleurs des
 // prairies, `fallen` feuilles mortes au sol, `falling` feuilles qui tombent,
-// `pumpkins` citrouilles autour du chalet. La scène y glisse progressivement.
+// `pumpkins` citrouilles autour du chalet, `snow` neige (sol, toits, tentes,
+// sapins, bonnets), `ice` lac gelé, `decor` décor d'hiver ; `crownSize` taille
+// des houppiers (arbres nus l'hiver). La scène y glisse progressivement.
 const SUMMER = {
   grass: '#6f9a68',
   crowns: ['#3f7a45', '#4a8048', '#356c3e', '#5a8a4a'],
@@ -105,6 +124,10 @@ const SUMMER = {
   fallen: 0,
   falling: 0,
   pumpkins: 0,
+  snow: 0,
+  ice: 0,
+  crownSize: 1,
+  decor: 0,
 }
 export const SEASON_LOOK = {
   printemps: {
@@ -116,15 +139,23 @@ export const SEASON_LOOK = {
   },
   ete: SUMMER,
   automne: {
+    ...SUMMER,
     grass: '#8f9a5a',
     crowns: ['#e3b23c', '#d98a2b', '#c9622a', '#a8431f', '#d9a13a'], // jaune → roux
     blossom: '#b8501f',
-    flowers: 0,
     fallen: 1,
     falling: 1,
     pumpkins: 1,
   },
-  hiver: SUMMER, // provisoire : l'hiver arrive à l'étape 4
+  hiver: {
+    ...SUMMER,
+    crowns: ['#e9eef0', '#dfe5e8', '#cfd6da', '#b9b2a8'], // branches nues saupoudrées
+    blossom: '#e6ecef',
+    snow: 1,
+    ice: 1,
+    crownSize: 0.55,
+    decor: 1,
+  },
 }
 
 // Couleur du feuillu de tirage `v` (∈ [0, 1[) pour cette saison

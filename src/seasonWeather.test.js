@@ -46,21 +46,32 @@ it('roundCoord arrondit à ~10 km', () => {
 
 describe('crowd (qui est dehors)', () => {
   it('beau temps et nuageux : tout le monde', () => {
-    const all = { hikers: 1, umbrellas: false, paragliders: true, birds: true, fireflies: true, fisher: true, campFire: true }
+    const all = { hikers: 1, umbrellas: false, paragliders: true, birds: true, fireflies: true, fisher: true, campFire: true, skiers: 0, skaters: 0 }
     expect(crowd('ete', 'degage')).toEqual(all)
     expect(crowd('ete', 'nuageux')).toEqual(all)
   })
   it('pluie : moins de monde, parapluies, ni parapentes ni feu de camp', () => {
     expect(crowd('automne', 'pluie')).toEqual({
       hikers: 0.35, umbrellas: true, paragliders: false, birds: false, fireflies: false, fisher: true, campFire: false,
+      skiers: 0, skaters: 0,
     })
   })
-  it('neige qui tombe : pas de parapluie', () => {
-    expect(crowd('hiver', 'pluie').umbrellas).toBe(false)
+  it("hiver : skieurs et patineurs, ni pêcheur, ni parapentes, ni lucioles", () => {
+    expect(crowd('hiver', 'degage')).toEqual({
+      hikers: 1, umbrellas: false, paragliders: false, birds: true, fireflies: false, fisher: false, campFire: true,
+      skiers: 1, skaters: 1,
+    })
+  })
+  it('neige qui tombe : moins de monde, pas de parapluie', () => {
+    expect(crowd('hiver', 'pluie')).toEqual({
+      hikers: 0.35, umbrellas: false, paragliders: false, birds: false, fireflies: false, fisher: false, campFire: false,
+      skiers: 0.5, skaters: 0.5,
+    })
   })
   it('orage : personne dehors', () => {
     expect(crowd('ete', 'orage')).toEqual({
       hikers: 0, umbrellas: false, paragliders: false, birds: false, fireflies: false, fisher: false, campFire: false,
+      skiers: 0, skaters: 0,
     })
   })
 })
@@ -86,7 +97,7 @@ describe('aspect des saisons', () => {
   it('chaque saison est complète', () => {
     for (const s of SEASONS) {
       expect(Object.keys(SEASON_LOOK[s]).sort()).toEqual([
-        'blossom', 'crowns', 'fallen', 'falling', 'flowers', 'grass', 'pumpkins',
+        'blossom', 'crownSize', 'crowns', 'decor', 'fallen', 'falling', 'flowers', 'grass', 'ice', 'pumpkins', 'snow',
       ])
     }
   })
@@ -95,9 +106,11 @@ describe('aspect des saisons', () => {
     expect(crownColor('automne', 0.999)).toBe('#d9a13a')
     expect(crownColor('ete', 0.3)).toBe('#4a8048')
   })
-  it("hiver (en attendant l'étape 4) : ni fleurs ni citrouilles", () => {
-    expect(SEASON_LOOK.hiver.flowers).toBe(0)
-    expect(SEASON_LOOK.hiver.pumpkins).toBe(0)
+  it('hiver : neige, lac gelé, arbres nus, décor ; ni fleurs ni citrouilles', () => {
+    const h = SEASON_LOOK.hiver
+    expect([h.snow, h.ice, h.decor, h.crownSize, h.flowers, h.pumpkins]).toEqual([1, 1, 1, 0.55, 0, 0])
+    expect(SEASON_LOOK.ete.crownSize).toBe(1)
+    expect(crownColor('hiver', 0)).toBe('#e9eef0')
   })
   it('stagger : pousse en vague, les petits tirages d’abord', () => {
     expect(stagger(0, 0.3)).toBe(0)
