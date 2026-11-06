@@ -52,7 +52,7 @@ import {
 } from './ambient.js'
 import { HIDDEN, canvasTexture, clamp01, easeOutBack, easeOutCubic, flatMat, smoothstep } from './helpers.js'
 import { themeColor } from '../themeColors.js'
-import { WEATHER_LOOK, SKY_VEIL, SEASON_LOOK, approach, crowd, crownColor, stagger } from '../seasonWeather.js'
+import { WEATHER_LOOK, SEASON_LOOK, skyVeil, approach, crowd, crownColor, stagger } from '../seasonWeather.js'
 
 function seeded(seed) {
   let s = seed
@@ -331,14 +331,19 @@ function buildTerrain() {
 
     // part de prairie (teintée selon la saison) et taches de feuilles mortes
     // (sous-bois et prairies basses), jamais sur la neige, la grève ni sous l'eau
-    const dry = (1 - snow) * (1 - shore) * (1 - clamp01((WATER_LEVEL - y) / 0.5))
+    // sous l'eau : seulement dans la cuvette du lac (ailleurs, le premier plan
+    // descend plus bas que l'eau sans être mouillé)
+    const underwater = nearWater(pos.getX(i), pos.getZ(i), y, 0.7) ? clamp01((WATER_LEVEL - y) / 0.5) : 0
+    const dry = (1 - snow) * (1 - shore) * (1 - underwater)
     meadow[i] = (t < 0.2 ? 1 : clamp01(1 - (t - 0.2) / 0.25)) * (1 - woods[i] * 0.5) * dry
     leaves[i] =
       clamp01((noise(pos.getX(i) * 0.11 + 9.3, pos.getZ(i) * 0.11 - 4.1) - 0.5) / 0.15) *
       clamp01((0.3 - t) / 0.1) *
       dry
-    // l'hiver, la neige tient partout sauf sur les pentes raides
-    cover[i] = dry * clamp01((flat - 0.6) / 0.2)
+    // l'hiver, la neige tient presque partout (grève comprise, à peine moins) :
+    // seules les parois quasi verticales restent en roche
+    cover[i] =
+      (1 - snow) * (1 - underwater) * (1 - shore * 0.3) * clamp01((flat - 0.3) / 0.25)
   }
 
   geo.setAttribute('color', new BufferAttribute(colors, 3))
@@ -366,7 +371,7 @@ function buildTerrain() {
       .replace('#include <common>', '#include <common>\nuniform vec3 uGrass;\nuniform float uFallen;\nuniform vec3 uLeafGround;\nuniform float uSnow;\nuniform vec3 uSnowColor;\nvarying float vMeadow;\nvarying float vLeaves;\nvarying float vCover;')
       .replace(
         '#include <color_fragment>',
-        '#include <color_fragment>\ndiffuseColor.rgb *= mix(vec3(1.0), uGrass, vMeadow);\ndiffuseColor.rgb = mix(diffuseColor.rgb, uLeafGround, vLeaves * uFallen * 0.6);\ndiffuseColor.rgb = mix(diffuseColor.rgb, uSnowColor, vCover * uSnow * 0.92);'
+        '#include <color_fragment>\ndiffuseColor.rgb *= mix(vec3(1.0), uGrass, vMeadow);\ndiffuseColor.rgb = mix(diffuseColor.rgb, uLeafGround, vLeaves * uFallen * 0.6);\ndiffuseColor.rgb = mix(diffuseColor.rgb, uSnowColor, vCover * uSnow * 0.96);'
       )
   }
   const mesh = new Mesh(geo, mat)
@@ -2078,9 +2083,10 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
   // WEATHER_DURATION s, plus le voile du ciel (même couleur que le CSS du hero).
   // Une bascule part de l'état courant (`from`) vers la cible (`to`) avec une
   // progression `wxP` de 0 à 1 : changer d'avis en cours de route ne fait pas sauter.
-  const lookOf = (weather) => {
-    const [dayC, dayA] = SKY_VEIL[weather].day
-    const [nightC, nightA] = SKY_VEIL[weather].night
+  // voile du ciel : celui de la météo, plus le voile blanc de l'hiver (skyVeil)
+  const lookOf = (season, weather) => {
+    const [dayC, dayA] = skyVeil(season, weather, false)
+    const [nightC, nightA] = skyVeil(season, weather, true)
     return { ...WEATHER_LOOK[weather], day: new Color(dayC), night: new Color(nightC), dayA, nightA }
   }
   const WEATHER_KEYS = Object.keys(WEATHER_LOOK.degage)
@@ -2092,9 +2098,9 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
     out.nightA = src.nightA
     return out
   }
-  const wx = lookOf('degage') // état courant
-  const wxFrom = lookOf('degage')
-  let wxTo = lookOf('degage')
+  const wx = lookOf('ete', 'degage') // état courant
+  const wxFrom = lookOf('ete', 'degage')
+  let wxTo = lookOf('ete', 'degage')
   let wxP = 1
   let weatherState = { season: 'ete', weather: 'degage' }
   let crowdNow = crowd('ete', 'degage') // qui est dehors avec cette météo
@@ -2352,7 +2358,7 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
       chalet.setCrowd(crowdNow, !running)
       camps.setShelter(!crowdNow.campFire, !running)
       copyLook(wxFrom, wx)
-      wxTo = lookOf(next.weather)
+      wxTo = lookOf(next.season, next.weather)
       wxP = 0
       if (!running) {
         precipitation.snap(next.season === 'hiver')

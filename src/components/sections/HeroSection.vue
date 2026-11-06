@@ -47,7 +47,7 @@ import aboutData from '../../data/about.json'
 import { useParallax } from '../../composables/useParallax'
 import { useTheme } from '../../composables/useTheme'
 import { scene3dActive, useSeasonWeather } from '../../composables/useSeasonWeather'
-import { SKY_VEIL } from '../../seasonWeather.js'
+import { skyVeil as veilOf } from '../../seasonWeather.js'
 
 const first = aboutData.first
 const last = aboutData.last
@@ -148,7 +148,8 @@ watch(scene3dActive, (on) => {
   requestAnimationFrame(() => requestAnimationFrame(() => (veilInstant.value = false)))
 })
 const skyVeil = computed(() => {
-  const [color, alpha] = SKY_VEIL[effective.value.weather][isDark.value ? 'night' : 'day']
+  const { season, weather } = effective.value
+  const [color, alpha] = veilOf(season, weather, isDark.value)
   return { '--wx-veil': color, '--wx-veil-a': alpha }
 })
 

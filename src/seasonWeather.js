@@ -64,6 +64,27 @@ export const SKY_VEIL = {
   orage: { day: ['#2b3238', 0.8], night: ['#07090c', 0.75] },
 }
 
+// L'hiver, un voile blanc bleuté de plus sous celui de la météo : sans lui, le
+// ciel et la brume gardent la teinte verte du thème et le paysage enneigé verdit.
+const WINTER_VEIL = { day: ['#eef3f6', 0.4], night: ['#1c2633', 0.25] }
+const hexRGB = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
+const rgbHex = (rgb) => '#' + rgb.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')
+
+// Voile final [couleur, opacité] posé sur le ciel CSS (et mélangé à la brume 3D) :
+// celui de la météo, posé sur celui de l'hiver le cas échéant (composition en sRGB).
+export function skyVeil(season, weather, night) {
+  const key = night ? 'night' : 'day'
+  const top = SKY_VEIL[weather][key]
+  if (season !== 'hiver') return top
+  const [under, au] = WINTER_VEIL[key]
+  const [over, ao] = top
+  if (!ao) return WINTER_VEIL[key]
+  const alpha = 1 - (1 - au) * (1 - ao)
+  const a = hexRGB(over)
+  const b = hexRGB(under)
+  return [rgbHex(a.map((v, i) => (v * ao + b[i] * au * (1 - ao)) / alpha)), alpha]
+}
+
 // Qui est dehors selon la météo (déjà effective : pas d'orage en hiver).
 // `hikers` : part des randonneurs encore en balade ; `campFire` : le soir, feu
 // et campeurs dehors (sinon tous à l'abri dans les tentes, feu éteint).

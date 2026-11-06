@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   seasonFromDate, weatherFromCode, effectiveWeather, weatherLabel, roundCoord,
   crowd, approach, WEATHERS, WEATHER_LOOK, SKY_VEIL,
-  SEASONS, SEASON_LOOK, crownColor, stagger,
+  SEASONS, SEASON_LOOK, crownColor, stagger, skyVeil,
 } from './seasonWeather.js'
 
 describe('seasonFromDate', () => {
@@ -118,5 +118,21 @@ describe('aspect des saisons', () => {
     expect(stagger(0.5, 0)).toBe(1)
     expect(stagger(0.5, 1)).toBe(0)
     expect(stagger(0.25, 0)).toBe(0.5)
+  })
+})
+
+describe('skyVeil (voile du ciel et de la brume)', () => {
+  it('hors hiver : le voile de la météo', () => {
+    expect(skyVeil('ete', 'pluie', false)).toEqual(SKY_VEIL.pluie.day)
+    expect(skyVeil('automne', 'degage', true)).toEqual(SKY_VEIL.degage.night)
+  })
+  it("l'hiver blanchit le ciel, même dégagé", () => {
+    expect(skyVeil('hiver', 'degage', false)).toEqual(['#eef3f6', 0.4])
+    expect(skyVeil('hiver', 'degage', true)).toEqual(['#1c2633', 0.25])
+  })
+  it("hiver + météo : le voile de la météo se pose sur celui de l'hiver", () => {
+    const [color, alpha] = skyVeil('hiver', 'nuageux', false)
+    expect(alpha).toBeCloseTo(0.67)
+    expect(color).toBe('#e7ecee')
   })
 })
