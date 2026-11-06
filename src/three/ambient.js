@@ -525,34 +525,45 @@ export function buildClouds(count = 5) {
 // Couche de gros nuages accrochés aux sommets, dans le monde (pas dans le ciel qui
 // suit la caméra) : les crêtes y entrent et disparaissent. `cover` (0..1) les fait
 // apparaître en fondu, `shade` les assombrit (pluie, orage).
-export function buildCloudBank(count = 18) {
+// Deux couches : nuages bas accrochés aux sommets, et plafond plus haut, plus
+// large et plus serré qui ferme tout le haut du ciel (sans trou entre les nuages).
+const CLOUD_LAYERS = [
+  { count: 18, span: 200, y: [26, 46], z: [-45, -100], w: [38, 64], alpha: [0.75, 1] },
+  { count: 22, span: 320, y: [48, 82], z: [-80, -150], w: [80, 120], alpha: [0.9, 1] },
+]
+export function buildCloudBank() {
   const group = new Group()
   const variants = getCloudTextures()
   const color = new Color()
-  const SPAN = 200 // boucle de dérive en x, plus large que le champ de vision
-  const bank = Array.from({ length: count }, (_, i) => {
-    const sprite = new Sprite(
-      new SpriteMaterial({ map: variants[i % 3], transparent: true, depthWrite: false, fog: false })
-    )
-    const w = 38 + Math.random() * 26
-    sprite.scale.set(w, w * 0.45, 1)
-    group.add(sprite)
-    return {
-      sprite,
-      x0: (i / count) * SPAN + Math.random() * 8,
-      y: 26 + Math.random() * 20, // à hauteur des sommets
-      z: -45 - Math.random() * 55,
-      speed: 0.6 + Math.random() * 0.8,
-      alpha: 0.75 + Math.random() * 0.25,
-    }
-  })
+  const between = ([a, b]) => a + Math.random() * (b - a)
+  const bank = CLOUD_LAYERS.flatMap((layer) =>
+    Array.from({ length: layer.count }, (_, i) => {
+      const sprite = new Sprite(
+        new SpriteMaterial({ map: variants[i % 3], transparent: true, depthWrite: false, fog: false })
+      )
+      const w = between(layer.w)
+      sprite.scale.set(w, w * 0.45, 1)
+      return {
+        sprite,
+        span: layer.span, // boucle de dérive en x, plus large que le champ de vision
+        x0: (i / layer.count) * layer.span + Math.random() * 8,
+        y: between(layer.y),
+        z: between(layer.z),
+        speed: 0.6 + Math.random() * 0.8,
+        alpha: between(layer.alpha),
+      }
+    })
+  )
+  // les plus lointains d'abord : la transparence se mélange dans le bon ordre
+  bank.sort((a, b) => a.z - b.z)
+  for (const c of bank) group.add(c.sprite)
 
   const update = (t, cover, shade, k) => {
     group.visible = cover > 0
     if (!group.visible) return
     cloudTint(color, shade, k)
     for (const c of bank) {
-      const x = ((c.x0 + t * c.speed) % SPAN) - SPAN / 2
+      const x = ((c.x0 + t * c.speed) % c.span) - c.span / 2
       c.sprite.position.set(x, c.y, c.z)
       c.sprite.material.opacity = cover * c.alpha
       c.sprite.material.color.copy(color)
@@ -730,7 +741,11 @@ export function buildPrecipitation() {
 // Toutes les 4 à 11 s : un éclair en zigzag tombe au loin, avec un double flash.
 // `update` renvoie l'intensité du flash (0..1), que la scène ajoute à sa lumière
 // et que le hero applique au ciel CSS.
-export function buildLightning() {
+// Éclairs d'orage : ruban en zigzag. Le plus souvent au loin, n'importe où au-
+// dessus des crêtes ; environ un sur trois tombe au premier plan, avec une
+// gerbe d'étincelles et une lueur sur le sol à l'impact. `groundAt(x, z)` :
+// hauteur du sol (ou de l'eau). Retourne l'intensité du flash (0..1).
+export function buildLightning(groundAt) {
   const WIDTH = 0.9
   const POINTS = 14
   const pos = new Float32Array(POINTS * 2 * 3)
@@ -749,17 +764,81 @@ export function buildLightning() {
   bolt.frustumCulled = false
   bolt.visible = false
 
-  // ruban en zigzag du haut du ciel jusque derrière les crêtes
+  // impact au premier plan : lueur au sol et étincelles projetées
+  const glow = new Sprite(
+    new SpriteMaterial({
+      map: canvasTexture(64, 64, (ctx, w) => softBlob(ctx, w / 2, w / 2, w / 2, 1, 0.15)),
+      color: '#dfe8ff',
+      blending: AdditiveBlending,
+      transparent: true,
+      depthWrite: false,
+      fog: false,
+    })
+  )
+  glow.visible = false
+  const SPARKS = 40
+  const sparkPos = new Float32Array(SPARKS * 3)
+  const sparkVel = new Float32Array(SPARKS * 3)
+  const sparkGeo = new BufferGeometry()
+  sparkGeo.setAttribute('position', new BufferAttribute(sparkPos, 3))
+  const sparks = new Points(
+    sparkGeo,
+    new PointsMaterial({
+      color: '#fff6dc',
+      size: 0.2,
+      blending: AdditiveBlending,
+      transparent: true,
+      depthWrite: false,
+      fog: false,
+    })
+  )
+  sparks.frustumCulled = false
+  sparks.visible = false
+  const group = new Group()
+  group.add(bolt, glow, sparks)
+
+  const SPARK_LIFE = 0.8
+  let near = false
+  const impact = new Vector3()
+  // nouvel éclair : au loin (large bande au-dessus des crêtes) ou tout près
   const reshape = () => {
-    let x = (Math.random() * 2 - 1) * 90
-    const z = -140 - Math.random() * 60
+    near = Math.random() < 0.35
+    let x, z, top, bottom, width
+    if (near) {
+      x = -30 + Math.random() * 70
+      z = -25 + Math.random() * 45
+      bottom = groundAt(x, z)
+      top = bottom + 40
+      width = 0.35
+      impact.set(x, bottom, z)
+    } else {
+      x = (Math.random() * 2 - 1) * 150
+      z = -100 - Math.random() * 120
+      top = 90 + Math.random() * 20
+      bottom = 18 + Math.random() * 25
+      width = WIDTH
+    }
+    // le zigzag part du haut et finit pile au point d'impact
+    const xs = [x]
+    for (let i = 1; i < POINTS; i++) xs.push(xs[i - 1] + (Math.random() - 0.5) * (near ? 3 : 9))
+    const drift = xs[POINTS - 1] - x
     for (let i = 0; i < POINTS; i++) {
-      const y = 100 - (i / (POINTS - 1)) * 75
-      if (i) x += (Math.random() - 0.5) * 9
-      const w = WIDTH * (1 - (i / POINTS) * 0.6)
-      pos.set([x - w, y, z, x + w, y, z], i * 6)
+      const u = i / (POINTS - 1)
+      const y = top - u * (top - bottom)
+      const px = xs[i] - drift * u
+      const w = width * (1 - (i / POINTS) * 0.6)
+      pos.set([px - w, y, z, px + w, y, z], i * 6)
     }
     geo.attributes.position.needsUpdate = true
+    if (near) {
+      for (let i = 0; i < SPARKS; i++) {
+        sparkPos.set([x, bottom + 0.05, z], i * 3)
+        const a = Math.random() * Math.PI * 2
+        const v = 1 + Math.random() * 3
+        sparkVel.set([Math.cos(a) * v, 2 + Math.random() * 4, Math.sin(a) * v], i * 3)
+      }
+      glow.position.set(x, bottom + 0.6, z) // un peu au-dessus : moins coupée par le relief
+    }
   }
 
   // double flash : [début, fin, intensité] en secondes depuis l'impact
@@ -786,9 +865,27 @@ export function buildLightning() {
     }
     bolt.visible = flash > 0.3
     bolt.material.opacity = flash
-    return flash
+
+    // impact proche : lueur qui s'éteint, étincelles qui retombent
+    const live = near && since < SPARK_LIFE
+    glow.visible = sparks.visible = live
+    if (live) {
+      const fade = 1 - since / SPARK_LIFE
+      glow.material.opacity = Math.max(flash, fade * 0.6)
+      glow.scale.setScalar(4 + 3 * flash)
+      sparks.material.opacity = fade
+      for (let i = 0; i < SPARKS * 3; i += 3) {
+        sparkVel[i + 1] -= 9.8 * dt
+        sparkPos[i] += sparkVel[i] * dt
+        sparkPos[i + 1] = Math.max(impact.y, sparkPos[i + 1] + sparkVel[i + 1] * dt)
+        sparkPos[i + 2] += sparkVel[i + 2] * dt
+      }
+      sparkGeo.attributes.position.needsUpdate = true
+    }
+    // un éclair tout proche éclaire davantage la scène
+    return near ? Math.min(1, flash * 1.25) : flash
   }
-  return { object: bolt, update }
+  return { object: group, update }
 }
 
 // Feuilles d'automne portées par le vent, qui tombent en se balançant et en

@@ -2037,7 +2037,7 @@ export async function createMountainScene(canvas, { onSlow, onFlash } = {}) {
   const cloudBank = buildCloudBank() // temps couvert : nuages accrochés aux sommets
   scene.add(cloudBank.object)
   const precipitation = buildPrecipitation()
-  const lightning = buildLightning()
+  const lightning = buildLightning((x, z) => Math.max(sampleTerrain(x, z).h, WATER_LEVEL))
   scene.add(precipitation.object, lightning.object)
   scene.add(fireflies.object, birds.object, paragliders.object)
 
