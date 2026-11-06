@@ -69,7 +69,12 @@ let scene3d = null
 let io = null
 let unmounted = false
 
+// Dev uniquement : `?debug3d` force la 3D (même en WebGL logiciel, sans repli
+// « machine lente ») pour pouvoir la capturer en navigateur headless.
+const DEBUG_3D = import.meta.env.DEV && new URLSearchParams(location.search).has('debug3d')
+
 function canUse3D() {
+  if (DEBUG_3D) return true
   if (!document.documentElement.classList.contains('anim-on')) return false
   if (window.matchMedia('(max-width: 900px), (pointer: coarse)').matches) return false
   if ((navigator.hardwareConcurrency || 4) < 4) return false
@@ -104,7 +109,7 @@ async function init3D() {
   try {
     const { createMountainScene } = await import('../../three/mountainScene.js')
     if (unmounted) return
-    scene3d = await createMountainScene(canvas3d.value, { onSlow: teardown3D })
+    scene3d = await createMountainScene(canvas3d.value, { onSlow: DEBUG_3D ? null : teardown3D })
     // construite par étapes : le composant a pu être démonté entre-temps
     if (unmounted) return teardown3D()
     scene3d.setNight(isDark.value) // immédiat : la boucle ne tourne pas encore
